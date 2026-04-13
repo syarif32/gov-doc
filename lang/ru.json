@@ -1,0 +1,18 @@
+{
+    "Dashboard": "Панель управления",
+    "Documents": "Документы",
+    "Messaging": "Сообщения",
+    "User Management": "Управление пользователями",
+    "Departments": "Отделы",
+    "System Logs": "Системные логи",
+    "Welcome": "Добро пожаловать",
+    "Logout": "Выйти",
+    "Profile": "Профиль",
+    "Settings": "Настройки",
+    "System Administration": "Администрирование системы",
+    "Search": "Поиск",
+    "Total Users": "Всего пользователей",
+    "Total Documents": "Всего документов",
+    "My Uploads": "Мои загрузки",
+    "Active Units": "Активные отделы"
+}
