@@ -14,8 +14,8 @@ class AdminSeeder extends Seeder
     {
         // 1. Create a default Department
         $dept = Department::create([
-            'name_tk' => 'IT Bölümi',
-            'name_ru' => 'IT Отдел',
+            'name_tk' => 'IT ',
+            'name_ru' => 'IT Department',
             'name_en' => 'IT Department',
         ]);
 
@@ -23,8 +23,8 @@ class AdminSeeder extends Seeder
         $admin = User::create([
             'full_name' => 'System Administrator',
             'username' => 'admin',
-            'email' => 'admin@company.gov',
-            'password' => Hash::make('admin123'),
+            'email' => 'admin@gmail.com',
+            'password' => Hash::make('12345678'),
             'department_id' => $dept->id,
             'role_level' => 'admin',
             'preferred_lang' => 'en',
@@ -41,6 +41,6 @@ class AdminSeeder extends Seeder
 
         $this->command->info('Admin user created successfully!');
         $this->command->info('Username: admin');
-        $this->command->info('Password: admin123');
+        $this->command->info('Password: 12345678');
     }
 }

@@ -9,3 +9,164 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+/* =========================================
+   VARIABEL WARNA NASIONAL & PEMERINTAHAN
+   ========================================= */
+:root {
+    --indo-red: #CE1126; /* Warna merah bendera standar */
+    --indo-red-hover: #A60D1E;
+    --bg-soft-red: rgba(206, 17, 38, 0.08);
+    --border-red: rgba(206, 17, 38, 0.2);
+    --pure-white: #ffffff;
+    --bg-light: #f4f6f9; /* Background abu-abu sangat muda */
+    --text-dark: #1e293b;
+}
+
+/* =========================================
+   LAYOUT AUTHENTICATION (SINGLE CARD)
+   ========================================= */
+.auth-page-wrapper {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-light);
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* Dekorasi Latar Belakang (Nuansa Modern) */
+.bg-shape {
+    position: absolute;
+    border-radius: 50%;
+    z-index: -1;
+    filter: blur(80px);
+}
+.bg-shape-1 {
+    top: -10%;
+    right: -5%;
+    width: 400px;
+    height: 400px;
+    background: rgba(206, 17, 38, 0.15); /* Merah transparan */
+}
+.bg-shape-2 {
+    bottom: -10%;
+    left: -5%;
+    width: 300px;
+    height: 300px;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+/* =========================================
+   CARD LOGIN & FORM
+   ========================================= */
+.auth-card-container {
+    background: var(--pure-white);
+    width: 100%;
+    max-width: 420px;
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0,0,0,0.04);
+    z-index: 2;
+}
+
+.logo-circle {
+    width: 64px;
+    height: 64px;
+    background-color: var(--bg-soft-red);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    font-size: 1.8rem;
+    border: 1px solid var(--border-red);
+}
+
+.text-indo-red { color: var(--indo-red) !important; }
+.bg-soft-red { background-color: var(--bg-soft-red) !important; }
+.border-red { border: 1px solid var(--border-red) !important; }
+
+/* Custom Inputs */
+.custom-input-group .form-control, 
+.custom-input-group .input-group-text {
+    border-color: #e2e8f0;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    box-shadow: none;
+    transition: all 0.3s ease;
+}
+
+.custom-input-group .form-control:focus {
+    box-shadow: none;
+    border-color: var(--indo-red);
+}
+
+/* Saat input fokus, ubah warna icon di grup yang sama */
+.custom-input-group:focus-within .input-group-text,
+.custom-input-group:focus-within .form-control {
+    border-color: var(--indo-red);
+    color: var(--indo-red) !important;
+}
+
+/* Custom Checkbox */
+.custom-checkbox:checked {
+    background-color: var(--indo-red);
+    border-color: var(--indo-red);
+}
+
+/* Button Modern */
+.btn-indo-red {
+    background-color: var(--indo-red);
+    border: none;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-indo-red:hover {
+    background-color: var(--indo-red-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(206, 17, 38, 0.3);
+}
+
+/* Custom Alert */
+.custom-alert-danger {
+    background-color: #FEF2F2;
+    border-left: 4px solid var(--indo-red);
+    color: #991B1B;
+    border-radius: 6px;
+}
+
+/* =========================================
+   ANIMASI
+   ========================================= */
+.animated-fade-up {
+    animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+@keyframes fadeUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animated-shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+}

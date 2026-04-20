@@ -103,7 +103,7 @@
                 </div>
                 <div class="dev-signature text-muted">
                     <i class="bi bi-code-slash text-primary"></i> {{ __('Developed by') }}
-                    <a href="https://mad808.github.io/" target="_blank" class="dev-link">mad808</a>
+                    <a href="https://github.com/syarif32" target="_blank" class="dev-link">syarif</a>
                 </div>
             </div>
         </footer>

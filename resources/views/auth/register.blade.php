@@ -87,8 +87,8 @@
             <div class="input-icon-wrap">
                 <i class="bi bi-globe field-icon"></i>
                 <select name="preferred_lang" class="form-select">
-                    <option value="tk" {{ old('preferred_lang') == 'tk' ? 'selected' : '' }}>Türkmençe</option>
-                    <option value="ru" {{ old('preferred_lang') == 'ru' ? 'selected' : '' }}>Русский</option>
+                    <!-- <option value="tk" {{ old('preferred_lang') == 'tk' ? 'selected' : '' }}>Türkmençe</option> -->
+                    <option value="ru" {{ old('preferred_lang') == 'ru' ? 'selected' : '' }}>Indonesia</option>
                     <option value="en" {{ old('preferred_lang') == 'en' ? 'selected' : '' }}>English</option>
                 </select>
             </div>

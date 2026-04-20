@@ -92,5 +92,12 @@
     "already_registered": "Already have an account?",
     "sign_in_here": "Sign in here",
     "username": "Username",
-    "password": "Password"
+    "password": "Password",
+    "city_gov": "Semarang City Government",
+    "workspace": "DMS Workspace",
+    "system_title": "Digital Document Management System",
+    "system_desc": "Access collaborative workspaces, manage archives, and secure internal data efficiently.",
+    "feature_1": "Encrypted Infrastructure",
+    "feature_2": "Real-time Synchronization",
+    "developed_by": "System Developed By"
 }

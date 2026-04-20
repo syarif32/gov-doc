@@ -69,10 +69,10 @@
                                 <div class="mb-4">
                                     <label class="form-label small fw-bold">{{ __('Interface Language') }}</label>
                                     <select name="preferred_lang" class="form-select">
-                                        <option value="tk" {{ $user->preferred_lang == 'tk' ? 'selected' : '' }}>
-                                            Türkmençe</option>
+                                        <!-- <option value="tk" {{ $user->preferred_lang == 'tk' ? 'selected' : '' }}>
+                                            Türkmençe</option> -->
                                         <option value="ru" {{ $user->preferred_lang == 'ru' ? 'selected' : '' }}>
-                                            Русский</option>
+                                            Indonesia</option>
                                         <option value="en" {{ $user->preferred_lang == 'en' ? 'selected' : '' }}>
                                             English</option>
                                     </select>
