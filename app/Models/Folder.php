@@ -15,20 +15,21 @@ class Folder extends Model
     }
 
     // Get sub-folders
-    public function children()
-    {
-        return $this->hasMany(Folder::class, 'parent_id');
-    }
+    // app/Models/Folder.php
 
-    // Get documents inside this folder
-    public function documents()
-    {
-        return $this->hasMany(Document::class);
-    }
+// Folder ini milik Departemen apa?
+public function department()
+{
+    return $this->belongsTo(Department::class, 'department_id');
+}
 
-    // Link to department
-    public function department()
-    {
-        return $this->belongsTo(Department::class);
-    }
+// Folder ini punya dokumen apa saja?
+public function documents() {
+    return $this->hasMany(Document::class);
+}
+
+// Untuk sistem folder bercabang (sub-folder)
+public function children() {
+    return $this->hasMany(Folder::class, 'parent_id');
+}
 }

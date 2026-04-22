@@ -39,6 +39,20 @@
                                 <label class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2">{{ __('Description / Notes') }}</label>
                                 <textarea name="description" class="form-control md-input-textarea" rows="4" placeholder="{{ __('Add some context about this file...') }}">{{ $document->description }}</textarea>
                             </div>
+                            <div class="mb-4">
+    <label class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2">{{ __('Target Folder / Division') }}</label>
+    <div class="input-group-custom">
+        <span class="input-icon"><i class="bi bi-folder2-open"></i></span>
+        <select name="folder_id" class="form-select md-input" required>
+            @foreach($folders as $f)
+                <option value="{{ $f->id }}" {{ $document->folder_id == $f->id ? 'selected' : '' }}>
+                    [{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+    <small class="text-muted">{{ __('Pindahkan dokumen ini ke folder bidang lain jika diperlukan.') }}</small>
+</div>
 
                             <div class="p-3 bg-info bg-opacity-10 border border-info-subtle rounded-3 mb-4 d-flex align-items-start">
                                 <i class="bi bi-info-circle-fill text-info mt-1 me-3 fs-5"></i>

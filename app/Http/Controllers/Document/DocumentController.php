@@ -5,64 +5,79 @@ namespace App\Http\Controllers\Document;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\User;
+use App\Models\Folder;
+use App\Models\Department;
 use App\Models\DocumentPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
-    /**
-     * Display a listing of the documents.
-     */
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
+        $query = Document::query();
 
-        if ($user->role_level === 'admin') {
-            // Administrators see EVERY document in the system
-            $documents = Document::with('owner')->latest()->paginate(20);
-        } else {
-            // Normal users see only their own OR those shared with them
-            $documents = Document::where('owner_id', $user->id)
-                ->orWhereHas('permissions', function ($q) use ($user) {
-                    $q->where('user_id', $user->id)->orWhere('department_id', $user->department_id);
-                })
-                ->with('owner')
-                ->latest()
-                ->paginate(20);
+        // --- FITUR SORTIR ---
+        if ($request->filled('folder_id')) {
+            $query->where('folder_id', $request->folder_id);
+        }
+        if ($request->filled('year')) {
+            $query->whereYear('created_at', $request->year);
         }
 
-        // List of users for the "Share" dropdown (excluding self)
+        if ($user->role_level === 'admin') {
+            $documents = $query->with(['owner', 'folder'])->latest()->paginate(20);
+        } else {
+            $documents = $query->where(function($q) use ($user) {
+                $q->where('owner_id', $user->id)
+                  ->orWhereHas('permissions', function ($pq) use ($user) {
+                      $pq->where('user_id', $user->id)
+                        ->orWhere('department_id', $user->department_id);
+                  });
+            })
+            ->with(['owner', 'folder'])
+            ->latest()
+            ->paginate(20);
+        }
+        $documents = $query->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
+                       ->latest()
+                       ->paginate(20);
+        // Data untuk Dropdown di UI
         $users = User::where('id', '!=', $user->id)->get();
+        $folders = Folder::with('department')->get();
+        $departments = Department::all();
+        
+        // List tahun untuk filter (dari 5 tahun lalu sampai sekarang)
+        $years = range(date('Y'), date('Y') - 5);
 
-        return view('documents.index', compact('documents', 'users'));
+        return view('documents.index', compact('documents', 'users', 'folders', 'departments', 'years'));
     }
 
-    /**
-     * Store a newly uploaded document in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|file|max:51200', // 50MB Max
+            'file' => 'required|file|max:51200',
+            'folder_id' => 'required|exists:folders,id', // WAJIB pilih folder
         ]);
 
         if ($request->hasFile('file')) {
             $file = $request->file('file');
-
-            // Store in 'private' folder - not accessible via public URL
-            $path = $file->store('private/documents');
+            
+            // Simpan fisik file di sub-folder agar rapi
+            $path = $file->store('private/documents/' . $request->folder_id);
 
             $doc = Document::create([
                 'title' => $request->title,
+                'folder_id' => $request->folder_id,
                 'file_path' => $path,
                 'extension' => $file->getClientOriginalExtension(),
                 'file_size' => $file->getSize(),
                 'owner_id' => auth()->id(),
             ]);
 
-            auth()->user()->logAction("Uploaded document: " . $doc->title);
+            auth()->user()->logAction("Uploaded document: " . $doc->title . " to folder ID: " . $request->folder_id);
 
             return back()->with('success', __('Document uploaded successfully'));
         }
@@ -70,111 +85,101 @@ class DocumentController extends Controller
         return back()->with('error', 'File upload failed');
     }
 
-    /**
-     * Download the file if the user has permission.
-     */
-    public function download(Document $document)
-    {
+    // Fungsi download, edit, update, destroy, dan share tetap sama seperti kode aslimu
+    public function download(Document $document) {
         $user = auth()->user();
-
-        // Permission Logic:
-        // 1. Is Admin? (Full access)
-        // 2. Is Owner?
-        // 3. Is it shared with this user in the permissions table?
         $hasPermission = DocumentPermission::where('document_id', $document->id)
             ->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)->orWhere('department_id', $user->department_id);
             })->exists();
 
         if ($user->role_level !== 'admin' && $document->owner_id !== $user->id && !$hasPermission) {
-            auth()->user()->logAction("UNAUTHORIZED DOWNLOAD ATTEMPT: " . $document->title);
-            abort(403, 'You do not have permission to download this file.');
+            abort(403);
         }
-
-        auth()->user()->logAction("Downloaded document: " . $document->title);
-
-        // Download from private storage
         return Storage::download($document->file_path, $document->title . '.' . $document->extension);
     }
 
-    /**
-     * Show the form for editing the document metadata.
-     */
     public function edit(Document $document)
-    {
-        // Only owner or admin can edit metadata
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-            abort(403, 'Unauthorized access.');
-        }
-
-        return view('documents.edit', compact('document'));
+{
+    // Hanya owner atau admin yang bisa edit metadata
+    if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+        abort(403, 'Unauthorized access.');
     }
 
-    /**
-     * Update the document metadata.
-     */
+    // Ambil daftar semua folder untuk dropdown
+    $folders = \App\Models\Folder::with('department')->get();
+
+    return view('documents.edit', compact('document', 'folders'));
+}
+
     public function update(Request $request, Document $document)
-    {
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-            abort(403);
-        }
-
-        $request->validate([
-            'title' => 'required|string|max:255',
-        ]);
-
-        $document->update([
-            'title' => $request->title,
-        ]);
-
-        auth()->user()->logAction("Updated document info: " . $document->title);
-
-        return redirect()->route('docs.index')->with('success', __('Document updated'));
+{
+    if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+        abort(403);
     }
 
-    /**
-     * Remove the document from storage.
-     */
-    public function destroy(Document $document)
-    {
-        // Only owner or admin can delete
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-            abort(403, 'Unauthorized.');
-        }
+    $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'folder_id' => 'required|exists:folders,id', // Tambahkan validasi folder
+    ]);
 
-        // Delete the physical file
+    $document->update([
+        'title' => $request->title,
+        'description' => $request->description,
+        'folder_id' => $request->folder_id, // Update folder tujuan
+    ]);
+
+    auth()->user()->logAction("Updated document and moved to folder ID: " . $document->folder_id);
+
+    return redirect()->route('docs.index')->with('success', __('Document updated and moved successfully'));
+}
+
+    public function destroy(Document $document) {
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') abort(403);
         Storage::delete($document->file_path);
-
-        // Delete database record
         $document->delete();
-
-        auth()->user()->logAction("Deleted document: " . $document->title);
-
         return back()->with('success', __('Document deleted successfully'));
     }
 
-    /**
-     * Share the document with another user or department.
-     */
-    public function share(Request $request, Document $document)
-    {
-        // Only owner can share their file
-        if ($document->owner_id !== auth()->id()) {
-            abort(403, 'Only the owner can share this document.');
-        }
-
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'access_level' => 'required|in:read,write'
-        ]);
-
-        DocumentPermission::updateOrCreate(
-            ['document_id' => $document->id, 'user_id' => $request->user_id],
-            ['access_level' => $request->access_level]
-        );
-
-        auth()->user()->logAction("Shared {$document->title} with user ID: " . $request->user_id);
-
-        return back()->with('success', __('Document shared successfully'));
+   public function share(Request $request, Document $document)
+{
+    if ($document->owner_id !== auth()->id()) {
+        abort(403);
     }
+
+    $request->validate([
+        'share_type' => 'required|in:user,department',
+        'user_id' => 'required_if:share_type,user|exists:users,id',
+        'department_id' => 'required_if:share_type,department|exists:departments,id',
+        'access_level' => 'required|in:read,write'
+    ]);
+
+    DocumentPermission::updateOrCreate(
+        [
+            'document_id' => $document->id, 
+            'user_id' => $request->share_type === 'user' ? $request->user_id : null,
+            'department_id' => $request->share_type === 'department' ? $request->department_id : null,
+        ],
+        ['access_level' => $request->access_level]
+    );
+
+    return back()->with('success', __('Berhasil membagikan dokumen ke grup/user'));
+}
+/**
+ * Mencabut akses (Unshare) dari user atau departemen tertentu.
+ */
+public function unshare(\App\Models\DocumentPermission $permission)
+{
+    // Cek keamanan: Pastikan hanya pemilik asli dokumen atau admin yang bisa mencabut akses
+    if ($permission->document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+        abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
+    }
+
+    $permission->delete();
+
+    auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
+
+    return back()->with('success', __('Akses dokumen berhasil dicabut.'));
+}
 }

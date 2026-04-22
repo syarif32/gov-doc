@@ -2,7 +2,11 @@
 
     <div class="sidebar-brand d-flex flex-column align-items-center justify-content-center py-4">
         <div class="brand-logo-wrap bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm">
-            <i class="bi bi-shield-check fs-3"></i>
+           <img src="https://upload.wikimedia.org/wikipedia/commons/f/f2/Lambang_Kota_Semarang.png" 
+     alt="Logo"
+     class="img-fluid"
+     style="max-width: 60%; height: auto;">
+            
         </div>
         <h5 class="fw-bold mb-1 text-white text-uppercase tracking-wide text-center">
             Diskominfo<br><span class="text-primary" style="font-size: 0.9rem;">Semarang</span>
@@ -45,6 +49,9 @@
 
                 <a href="{{ route('admin.departments.index') }}" class="nav-link side-link {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
                     <i class="bi bi-building"></i> <span>{{ __('Departments') }}</span>
+                </a>
+                <a href="{{ route('admin.folders.index') }}" class="nav-link side-link {{ request()->routeIs('admin.folders.*') ? 'active' : '' }}">
+                    <i class="bi bi-book"></i> <span>{{ __('Folders') }}</span>
                 </a>
 
                 <a href="{{ route('admin.logs') }}" class="nav-link side-link {{ request()->routeIs('admin.logs') ? 'active' : '' }}">

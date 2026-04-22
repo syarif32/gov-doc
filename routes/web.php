@@ -38,6 +38,8 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
         Route::resource('users', UserController::class);
         Route::resource('departments', DepartmentController::class);
         Route::get('/logs', [\App\Http\Controllers\Admin\LogController::class, 'index'])->name('logs');
+          // Di dalam Route::prefix('admin')->name('admin.')->group(function () { ...
+Route::resource('folders', \App\Http\Controllers\Admin\FolderController::class);
     });
 
     // Document Routes
@@ -51,7 +53,12 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
         // --------------------------------
 
         Route::post('/share/{document}', [DocumentController::class, 'share'])->name('share');
+        // Tambahkan di bawah route('docs.share') atau di grup route dokumen
+       Route::delete('/permissions/{permission}', [\App\Http\Controllers\Document\DocumentController::class, 'unshare'])->name('unshare');
+
     });
+
+  
 
     // Chat Routes
     Route::prefix('chat')->name('chat.')->group(function () {

@@ -16,7 +16,11 @@ class Document extends Model
         'file_size',
         'version'
     ];
-
+    public function folder()
+    {
+        // Dokumen ini termasuk dalam folder apa?
+        return $this->belongsTo(Folder::class, 'folder_id');
+    }
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');
