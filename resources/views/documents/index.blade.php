@@ -121,9 +121,15 @@
                                     </td>
                                     <td class="text-end pe-4 py-3">
                                         <div class="d-flex justify-content-end gap-1">
-                                            <a href="{{ route('docs.download', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Download File') }}">
-                                                <i class="bi bi-cloud-arrow-down-fill"></i>
-                                            </a>
+                                            @if($doc->google_file_id)
+        <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-icon btn-primary text-white hover-elevate shadow-sm" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
+            <i class="bi bi-pencil-square"></i> Live Edit
+        </a>
+    @else
+        <a href="{{ route('docs.download', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Download File') }}">
+            <i class="bi bi-cloud-arrow-down-fill"></i>
+        </a>
+    @endif
 
                                             @if ($doc->owner_id == auth()->id())
                                                 <button class="btn btn-sm btn-icon btn-light text-info hover-elevate" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">

@@ -47,6 +47,8 @@ Route::resource('folders', \App\Http\Controllers\Admin\FolderController::class);
         Route::get('/', [DocumentController::class, 'index'])->name('index');
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
         Route::get('/download/{document}', [DocumentController::class, 'download'])->name('download');
+        // Tambahkan baris ini di dalam group prefix('documents')
+Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('editor');
         Route::get('/edit/{document}', [DocumentController::class, 'edit'])->name('edit');
         Route::put('/update/{document}', [DocumentController::class, 'update'])->name('update');
         Route::delete('/delete/{document}', [DocumentController::class, 'destroy'])->name('destroy');

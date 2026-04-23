@@ -13,9 +13,23 @@ class Document extends Model
         'description',
         'file_path',
         'extension',
+        'google_file_id',
         'file_size',
         'version'
     ];
+    public function getGoogleEditorUrlAttribute()
+    {
+        if (!$this->google_file_id) return null;
+
+        $ext = strtolower($this->extension);
+        if (in_array($ext, ['xls', 'xlsx', 'csv'])) {
+            return "https://docs.google.com/spreadsheets/d/{$this->google_file_id}/edit?embedded=true";
+        } elseif (in_array($ext, ['ppt', 'pptx'])) {
+            return "https://docs.google.com/presentation/d/{$this->google_file_id}/edit?embedded=true";
+        } else {
+            return "https://docs.google.com/document/d/{$this->google_file_id}/edit?embedded=true";
+        }
+    }
     public function folder()
     {
         // Dokumen ini termasuk dalam folder apa?

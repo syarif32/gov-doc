@@ -54,35 +54,66 @@ class DocumentController extends Controller
         return view('documents.index', compact('documents', 'users', 'folders', 'departments', 'years'));
     }
 
-    public function store(Request $request)
+    // Inject Service langsung ke fungsi store agar lebih efisien memori
+    public function store(Request $request, \App\Services\GoogleDriveService $googleDriveService)
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|file|max:51200',
-            'folder_id' => 'required|exists:folders,id', // WAJIB pilih folder
+            'file' => 'required|file|max:51200', // 50MB Max
+            'folder_id' => 'required|exists:folders,id',
         ]);
 
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            
-            // Simpan fisik file di sub-folder agar rapi
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+
+        // 1. Siapkan Kerangka Data (DRY Principle - Jangan diulang)
+        $docData = [
+            'title' => $request->title,
+            'folder_id' => $request->folder_id,
+            'extension' => $extension,
+            'file_size' => $file->getSize(),
+            'owner_id' => auth()->id(),
+        ];
+
+        // 2. Dynamic Routing (Cabang Keputusan)
+        if (in_array($extension, $googleTypes)) {
+            // Lempar ke Google Drive Bot
+            $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title);
+            $docData['google_file_id'] = $googleFileId;
+            $docData['file_path'] = 'Cloud/GoogleDrive';
+        } else {
+            // Simpan Lokal (PDF, ZIP, Image, dll)
             $path = $file->store('private/documents/' . $request->folder_id);
-
-            $doc = Document::create([
-                'title' => $request->title,
-                'folder_id' => $request->folder_id,
-                'file_path' => $path,
-                'extension' => $file->getClientOriginalExtension(),
-                'file_size' => $file->getSize(),
-                'owner_id' => auth()->id(),
-            ]);
-
-            auth()->user()->logAction("Uploaded document: " . $doc->title . " to folder ID: " . $request->folder_id);
-
-            return back()->with('success', __('Document uploaded successfully'));
+            $docData['file_path'] = $path;
         }
 
-        return back()->with('error', 'File upload failed');
+        // 3. Eksekusi Database cukup 1 kali saja
+        $doc = Document::create($docData);
+
+        auth()->user()->logAction("Uploaded document: " . $doc->title);
+        return back()->with('success', __('Dokumen berhasil diunggah.'));
+    }
+
+    // TAMBAHKAN FUNGSI BARU INI UNTUK MENAMPILKAN EDITOR GOOGLE DOCS
+    public function editor(Document $document)
+    {
+        // Cek Keamanan: Apakah user berhak melihat file ini?
+        $user = auth()->user();
+        $hasPermission = \App\Models\DocumentPermission::where('document_id', $document->id)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)->orWhere('department_id', $user->department_id);
+            })->exists();
+
+        if ($user->role_level !== 'admin' && $document->owner_id !== $user->id && !$hasPermission) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        if (!$document->google_file_id) {
+            abort(404, 'Dokumen ini bukan format Google Editor.');
+        }
+
+        return view('documents.editor', compact('document'));
     }
 
     // Fungsi download, edit, update, destroy, dan share tetap sama seperti kode aslimu

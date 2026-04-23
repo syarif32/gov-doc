@@ -34,5 +34,12 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    // Tambahkan di dalam array return config/services.php
+'google' => [
+    'client_id'      => env('GOOGLE_CLIENT_ID'),
+    'client_secret'  => env('GOOGLE_CLIENT_SECRET'),
+    'refresh_token'  => env('GOOGLE_REFRESH_TOKEN'),
+    'drive_folder_id'=> env('GOOGLE_DRIVE_FOLDER_ID'),
+],
 
 ];
