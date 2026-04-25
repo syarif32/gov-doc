@@ -34,12 +34,11 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // Admin Routes
-    Route::prefix('admin')->name('admin.')->group(function () {
+    Route::prefix('admin')->name('admin.')->middleware('is_admin')->group(function () {
         Route::resource('users', UserController::class);
         Route::resource('departments', DepartmentController::class);
         Route::get('/logs', [\App\Http\Controllers\Admin\LogController::class, 'index'])->name('logs');
-          // Di dalam Route::prefix('admin')->name('admin.')->group(function () { ...
-Route::resource('folders', \App\Http\Controllers\Admin\FolderController::class);
+        Route::resource('folders', \App\Http\Controllers\Admin\FolderController::class);
     });
 
     // Document Routes
@@ -53,6 +52,9 @@ Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('e
         Route::put('/update/{document}', [DocumentController::class, 'update'])->name('update');
         Route::delete('/delete/{document}', [DocumentController::class, 'destroy'])->name('destroy');
         // --------------------------------
+        Route::post('/upload', [DocumentController::class, 'store'])->name('store');
+        // TAMBAHKAN INI UNTUK BIKIN FILE BARU
+        Route::post('/create-blank', [DocumentController::class, 'storeBlank'])->name('storeBlank');
 
         Route::post('/share/{document}', [DocumentController::class, 'share'])->name('share');
         // Tambahkan di bawah route('docs.share') atau di grup route dokumen

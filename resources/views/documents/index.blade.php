@@ -1,5 +1,7 @@
 @extends('layouts.admin')
-
+@if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+@endif
 @section('content')
     <div class="dashboard-container">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-2 stagger-1">
@@ -12,8 +14,13 @@
                     <p class="text-secondary small mb-0">{{ __('Securely manage, store, and share enterprise files') }}</p>
                 </div>
             </div>
-            <div>
-                <button class="btn btn-primary md-btn d-flex align-items-center px-4 py-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary d-flex align-items-center px-3 py-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createBlankModal">
+                    <i class="bi bi-file-earmark-plus me-2 fs-5"></i> <span class="fw-semibold">{{ __('Buat Dokumen') }}</span>
+                </button>
+                
+                <button class="btn btn-primary d-flex align-items-center px-4 py-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
                     <i class="bi bi-cloud-arrow-up-fill me-2 fs-5"></i> <span class="fw-semibold">{{ __('Upload File') }}</span>
                 </button>
             </div>
@@ -22,9 +29,15 @@
         <div class="card border-0 shadow-sm rounded-4 mb-4 stagger-2">
             <div class="card-body p-3">
                 <form action="{{ route('docs.index') }}" method="GET" class="row g-2">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <input type="text" name="search" class="form-control border-0 bg-light" placeholder="{{ __('Cari nama dokumen...') }}" value="{{ request('search') }}">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" name="tanggal" class="form-control border-0 bg-light" value="{{ request('tanggal') }}" title="{{ __('Pilih Tanggal Upload') }}">
+                    </div>
+                    <div class="col-md-3">
                         <select name="folder_id" class="form-select border-0 bg-light">
-                            <option value="">{{ __('Semua Folder') }}</option>
+                            <option value="">{{ __('Semua Kategori/Folder') }}</option>
                             @foreach($folders as $f)
                                 <option value="{{ $f->id }}" {{ request('folder_id') == $f->id ? 'selected' : '' }}>
                                     [{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}
@@ -32,19 +45,11 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <select name="year" class="form-select border-0 bg-light">
-                            <option value="">{{ __('Semua Tahun') }}</option>
-                            @foreach($years as $y)
-                                <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
-                            @endforeach
-                        </select>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search me-1"></i> {{ __('Filter') }}</button>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-dark w-100">{{ __('Filter') }}</button>
-                    </div>
-                    <div class="col-md-2">
-                        <a href="{{ route('docs.index') }}" class="btn btn-outline-secondary w-100">{{ __('Reset') }}</a>
+                        <a href="{{ route('docs.index') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise"></i> {{ __('Reset') }}</a>
                     </div>
                 </form>
             </div>
@@ -62,7 +67,7 @@
             </div>
         @endif
 
-        <div class="card md-card border-0 stagger-3 h-100">
+        <div class="card md-card border-0 stagger-3 mb-4">
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover table-borderless align-middle mb-0">
@@ -85,6 +90,7 @@
                                     elseif (in_array($ext, ['jpg', 'png', 'jpeg'])) { $icon = 'bi-file-earmark-image-fill'; $colorClass = 'bg-success text-success'; }
                                     elseif (in_array($ext, ['zip', 'rar'])) { $icon = 'bi-file-earmark-zip-fill'; $colorClass = 'bg-warning text-warning'; }
                                     elseif (in_array($ext, ['xls', 'xlsx', 'csv'])) { $icon = 'bi-file-earmark-spreadsheet-fill'; $colorClass = 'bg-success text-success'; }
+                                    elseif (in_array($ext, ['ppt', 'pptx'])) { $icon = 'bi-file-earmark-slides-fill'; $colorClass = 'bg-warning text-warning'; }
                                 @endphp
                                 <tr class="table-row-hover">
                                     <td class="ps-4 py-3">
@@ -96,6 +102,9 @@
                                                 <div class="fw-semibold text-dark text-truncate" title="{{ $doc->title }}">{{ $doc->title }}</div>
                                                 <div class="d-flex align-items-center mt-1">
                                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 text-uppercase" style="font-size: 0.65rem;">{{ $ext }}</span>
+                                                    @if($doc->file_size == 0)
+                                                        <span class="ms-1 badge bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-0" style="font-size: 0.65rem;">Baru Dibuat</span>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </div>
@@ -114,22 +123,23 @@
                                         </div>
                                     </td>
                                     <td class="py-3 text-secondary font-monospace small">
-                                        {{ number_format($doc->file_size / 1024, 1) }} KB
+                                        {{ $doc->file_size == 0 ? '-' : number_format($doc->file_size / 1024, 1) . ' KB' }}
                                     </td>
                                     <td class="py-3 text-secondary small">
                                         <div class="fw-medium text-dark">{{ $doc->created_at->format('d M Y') }}</div>
                                     </td>
                                     <td class="text-end pe-4 py-3">
                                         <div class="d-flex justify-content-end gap-1">
+                                            
                                             @if($doc->google_file_id)
-        <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-icon btn-primary text-white hover-elevate shadow-sm" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
-            <i class="bi bi-pencil-square"></i> Live Edit
-        </a>
-    @else
-        <a href="{{ route('docs.download', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Download File') }}">
-            <i class="bi bi-cloud-arrow-down-fill"></i>
-        </a>
-    @endif
+                                                <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-icon btn-primary text-white hover-elevate shadow-sm" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
+                                                    <i class="bi bi-pencil-square"></i> Live Edit
+                                                </a>
+                                            @else
+                                                <a href="{{ route('docs.download', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Download File') }}">
+                                                    <i class="bi bi-cloud-arrow-down-fill"></i>
+                                                </a>
+                                            @endif
 
                                             @if ($doc->owner_id == auth()->id())
                                                 <button class="btn btn-sm btn-icon btn-light text-info hover-elevate" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">
@@ -139,7 +149,7 @@
 
                                             @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
                                                 <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
-                                                    <i class="bi bi-pencil-square"></i>
+                                                    <i class="bi bi-gear"></i>
                                                 </a>
                                                 <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
                                                     @csrf @method('DELETE')
@@ -152,14 +162,25 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center py-5">Empty</td></tr>
+                                <tr>
+                                    <td colspan="6" class="text-center py-5">
+                                        <div class="text-secondary mb-2"><i class="bi bi-folder-x fs-1"></i></div>
+                                        <div class="fw-medium">{{ __('Tidak ada dokumen ditemukan') }}</div>
+                                        <div class="small">Silakan ubah filter pencarian atau unggah dokumen baru.</div>
+                                    </td>
+                                </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
+        <div class="d-flex justify-content-center justify-content-md-end mb-5 stagger-4">
+            {{ $documents->links() }}
+        </div>
     </div>
+
 
     <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -206,6 +227,63 @@
                 <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
                     <button type="button" class="btn btn-light fw-medium px-4" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
                     <button type="submit" class="btn btn-primary md-btn px-5"><i class="bi bi-upload me-2"></i> {{ __('Start Upload') }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createBlankModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form action="{{ route('docs.storeBlank') }}" method="POST" class="modal-content border-0 shadow-lg rounded-4">
+                @csrf
+                <div class="modal-header border-bottom-0 pb-0 px-4 pt-4">
+                    <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                        <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <i class="bi bi-file-earmark-plus"></i>
+                        </div>
+                        {{ __('Buat Dokumen Baru') }}
+                    </h5>
+                    <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body px-4 py-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Nama Dokumen') }}</label>
+                        <div class="input-group-custom">
+                            <span class="input-icon"><i class="bi bi-fonts"></i></span>
+                            <input type="text" name="title" class="form-control md-input" placeholder="e.g. Surat Keputusan 2026" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Jenis Dokumen') }}</label>
+                        <div class="input-group-custom">
+                            <span class="input-icon"><i class="bi bi-window-stack"></i></span>
+                            <select name="type" class="form-select md-input" required>
+                                <option value="doc" selected>📄 Google Docs (Word)</option>
+                                <option value="xls">📊 Google Sheets (Excel)</option>
+                                <option value="ppt">📽️ Google Slides (PowerPoint)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Simpan di Folder') }}</label>
+                        <div class="input-group-custom">
+                            <span class="input-icon"><i class="bi bi-folder-symlink"></i></span>
+                            <select name="folder_id" class="form-select md-input" required>
+                                <option value="" disabled selected>{{ __('Pilih Folder Tujuan...') }}</option>
+                                @foreach($folders as $f)
+                                    <option value="{{ $f->id }}">[{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
+                    <button type="button" class="btn btn-light fw-medium px-4" data-bs-dismiss="modal">{{ __('Batal') }}</button>
+                    <button type="submit" class="btn btn-success md-btn px-5" onclick="this.innerHTML='<i class=\'bi bi-hourglass-split me-2\'></i> Memproses...';"><i class="bi bi-plus-lg me-2"></i> {{ __('Buat Sekarang') }}</button>
                 </div>
             </form>
         </div>
@@ -304,11 +382,14 @@
                                         <option value="write">{{ __('Editor') }}</option>
                                     </select>
                                 </div>
-                        </div> <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
+                        </div>
+                        
+                        <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
                             <button type="button" class="btn btn-light fw-medium px-4" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
                             <button type="submit" class="btn btn-info text-white md-btn px-5"><i class="bi bi-send me-2"></i> {{ __('Grant Access') }}</button>
                         </div>
-                        </form> </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         @endif
@@ -339,5 +420,12 @@
         .md-input { padding-left: 40px !important; border-radius: 10px; border: 1px solid #dadce0; }
         .md-file-input { border-radius: 10px; border: 2px dashed #dadce0; padding: 10px; background: #f8f9fa; }
         .file-icon-box { width: 48px; height: 48px; }
+        
+        /* Mempercantik Pagination Bawaan Laravel Bootstrap 5 */
+        .pagination { margin-bottom: 0; }
+        .page-item.active .page-link { background-color: #212529; border-color: #212529; }
+        .page-link { color: #212529; padding: 0.5rem 1rem; border-radius: 8px; margin: 0 3px; border: 1px solid #dee2e6; }
+        .page-item:not(.active) .page-link:hover { background-color: #f8f9fa; color: #000; }
+        .page-item.disabled .page-link { background-color: transparent; }
     </style>
 @endsection

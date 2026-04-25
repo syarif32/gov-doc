@@ -13,89 +13,190 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
-    public function index(Request $request)
+ public function index(Request $request)
     {
         $user = auth()->user();
         $query = Document::query();
 
-        // --- FITUR SORTIR ---
+        // --- 1. FITUR PENCARIAN & SORTIR SUPER LENGKAP ---
+        // Cari berdasarkan nama dokumen
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%' . $request->search . '%');
+        }
+        
+        // Sortir berdasarkan Tanggal Spesifik
+        if ($request->filled('tanggal')) {
+            $query->whereDate('created_at', $request->tanggal);
+        }
+
+        // Sortir berdasarkan Kategori/Folder
         if ($request->filled('folder_id')) {
             $query->where('folder_id', $request->folder_id);
         }
-        if ($request->filled('year')) {
-            $query->whereYear('created_at', $request->year);
-        }
 
+        // --- 2. LOGIKA HAK AKSES ---
         if ($user->role_level === 'admin') {
-            $documents = $query->with(['owner', 'folder'])->latest()->paginate(20);
+            $documents = $query->with(['owner', 'folder', 'permissions.user', 'permissions.department'])->latest()->paginate(20);
         } else {
             $documents = $query->where(function($q) use ($user) {
                 $q->where('owner_id', $user->id)
                   ->orWhereHas('permissions', function ($pq) use ($user) {
                       $pq->where('user_id', $user->id)
-                        ->orWhere('department_id', $user->department_id);
+                         ->orWhere('department_id', $user->department_id);
                   });
             })
-            ->with(['owner', 'folder'])
+            ->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
             ->latest()
             ->paginate(20);
         }
-        $documents = $query->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
-                       ->latest()
-                       ->paginate(20);
+        
         // Data untuk Dropdown di UI
         $users = User::where('id', '!=', $user->id)->get();
         $folders = Folder::with('department')->get();
         $departments = Department::all();
-        
-        // List tahun untuk filter (dari 5 tahun lalu sampai sekarang)
-        $years = range(date('Y'), date('Y') - 5);
 
-        return view('documents.index', compact('documents', 'users', 'folders', 'departments', 'years'));
+        return view('documents.index', compact('documents', 'users', 'folders', 'departments'));
     }
 
-    // Inject Service langsung ke fungsi store agar lebih efisien memori
+    // --- FUNGSI BARU: Bikin File Tanpa Upload ---
     public function store(Request $request, \App\Services\GoogleDriveService $googleDriveService)
     {
+        // SOLUSI MASALAH 3 (Infinite Loading): Bungkus dengan Try-Catch
+        try {
+            $request->validate([
+                'title' => 'required|string|max:255',
+                'file' => 'required|file|max:51200',
+                'folder_id' => 'required|exists:folders,id',
+            ]);
+
+            $file = $request->file('file');
+            $extension = strtolower($file->getClientOriginalExtension());
+            $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+
+            // Dapatkan nama Departemen & Tahun untuk Auto-Folder
+            $folderDb = \App\Models\Folder::with('department')->find($request->folder_id);
+            $autoFolderName = ($folderDb->department->name ?? 'Umum') . " - " . date('Y');
+
+            $docData = [
+                'title' => $request->title,
+                'folder_id' => $request->folder_id,
+                'extension' => $extension,
+                'file_size' => $file->getSize(),
+                'owner_id' => auth()->id(),
+            ];
+
+            if (in_array($extension, $googleTypes)) {
+                // Cari atau buat foldernya di Google Drive
+                $targetFolderId = $googleDriveService->getOrCreateFolder($autoFolderName);
+                
+                // Lempar ID folder tersebut agar file masuk ke dalamnya
+                $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title, $targetFolderId);
+                
+                $docData['google_file_id'] = $googleFileId;
+                $docData['file_path'] = 'Cloud/GoogleDrive';
+            } else {
+                $path = $file->store('private/documents/' . $request->folder_id);
+                $docData['file_path'] = $path;
+            }
+
+            $doc = Document::create($docData);
+            auth()->user()->logAction("Uploaded document: " . $doc->title);
+            
+            return back()->with('success', __('Dokumen berhasil diunggah dan terorganisir.'));
+
+        } catch (\Exception $e) {
+            // Jika ada error (termasuk untuk user biasa), tampilkan errornya! Tidak loading terus.
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    public function storeBlank(Request $request, \App\Services\GoogleDriveService $googleDriveService)
+    {
+        try {
+            $request->validate([
+                'title' => 'required|string|max:255',
+                'type' => 'required|in:doc,xls,ppt',
+                'folder_id' => 'required|exists:folders,id',
+            ]);
+
+            $folderDb = \App\Models\Folder::with('department')->find($request->folder_id);
+            $autoFolderName = ($folderDb->department->name ?? 'Umum') . " - " . date('Y');
+
+            // Cari atau buat foldernya
+            $targetFolderId = $googleDriveService->getOrCreateFolder($autoFolderName);
+
+            // Bikin file kosong di dalam folder tersebut
+            $googleFileId = $googleDriveService->createBlankFile($request->title, $request->type, $targetFolderId);
+
+            $doc = Document::create([
+                'title' => $request->title,
+                'folder_id' => $request->folder_id,
+                'extension' => $request->type . 'x',
+                'file_size' => 0,
+                'owner_id' => auth()->id(),
+                'google_file_id' => $googleFileId,
+                'file_path' => 'Cloud/GoogleDrive',
+            ]);
+
+            auth()->user()->logAction("Created new blank document: " . $doc->title);
+            return redirect()->route('docs.editor', $doc->id)->with('success', __('Dokumen baru berhasil dibuat!'));
+
+        } catch (\Exception $e) {
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    public function update(Request $request, Document $document)
+    {
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+            abort(403);
+        }
+
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|file|max:51200', // 50MB Max
+            'description' => 'nullable|string',
             'folder_id' => 'required|exists:folders,id',
         ]);
 
-        $file = $request->file('file');
-        $extension = strtolower($file->getClientOriginalExtension());
-        $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
-
-        // 1. Siapkan Kerangka Data (DRY Principle - Jangan diulang)
-        $docData = [
-            'title' => $request->title,
-            'folder_id' => $request->folder_id,
-            'extension' => $extension,
-            'file_size' => $file->getSize(),
-            'owner_id' => auth()->id(),
-        ];
-
-        // 2. Dynamic Routing (Cabang Keputusan)
-        if (in_array($extension, $googleTypes)) {
-            // Lempar ke Google Drive Bot
-            $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title);
-            $docData['google_file_id'] = $googleFileId;
-            $docData['file_path'] = 'Cloud/GoogleDrive';
-        } else {
-            // Simpan Lokal (PDF, ZIP, Image, dll)
-            $path = $file->store('private/documents/' . $request->folder_id);
-            $docData['file_path'] = $path;
+        // SOLUSI MASALAH 4: Jika folder_id berubah, pindahkan juga di Google Drive
+        if ($document->folder_id != $request->folder_id && $document->google_file_id) {
+            $googleDriveService = app(\App\Services\GoogleDriveService::class);
+            
+            $newFolderDb = \App\Models\Folder::with('department')->find($request->folder_id);
+            $newFolderName = ($newFolderDb->department->name ?? 'Umum') . " - " . date('Y');
+            
+            $newGoogleFolderId = $googleDriveService->getOrCreateFolder($newFolderName);
+            $googleDriveService->moveFile($document->google_file_id, $newGoogleFolderId);
         }
 
-        // 3. Eksekusi Database cukup 1 kali saja
-        $doc = Document::create($docData);
+        $document->update([
+            'title' => $request->title,
+            'description' => $request->description,
+            'folder_id' => $request->folder_id,
+        ]);
 
-        auth()->user()->logAction("Uploaded document: " . $doc->title);
-        return back()->with('success', __('Dokumen berhasil diunggah.'));
+        auth()->user()->logAction("Updated document ID: " . $document->id);
+        return redirect()->route('docs.index')->with('success', __('Dokumen berhasil diperbarui.'));
     }
 
-    // TAMBAHKAN FUNGSI BARU INI UNTUK MENAMPILKAN EDITOR GOOGLE DOCS
+    public function destroy(Document $document)
+    {
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') abort(403);
+        
+        // SOLUSI MASALAH 5: Hapus juga dari Google Drive (Masuk Trash)
+        if ($document->google_file_id) {
+            $googleDriveService = app(\App\Services\GoogleDriveService::class);
+            $googleDriveService->deleteFile($document->google_file_id);
+        }
+
+        if ($document->file_path && $document->file_path !== 'Cloud/GoogleDrive') {
+            Storage::delete($document->file_path);
+        }
+        
+        $document->delete();
+        return back()->with('success', __('Dokumen berhasil dihapus dari sistem dan Google Drive.'));
+    }
+   
     public function editor(Document $document)
     {
         // Cek Keamanan: Apakah user berhak melihat file ini?
@@ -143,35 +244,6 @@ class DocumentController extends Controller
     return view('documents.edit', compact('document', 'folders'));
 }
 
-    public function update(Request $request, Document $document)
-{
-    if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-        abort(403);
-    }
-
-    $request->validate([
-        'title' => 'required|string|max:255',
-        'description' => 'nullable|string',
-        'folder_id' => 'required|exists:folders,id', // Tambahkan validasi folder
-    ]);
-
-    $document->update([
-        'title' => $request->title,
-        'description' => $request->description,
-        'folder_id' => $request->folder_id, // Update folder tujuan
-    ]);
-
-    auth()->user()->logAction("Updated document and moved to folder ID: " . $document->folder_id);
-
-    return redirect()->route('docs.index')->with('success', __('Document updated and moved successfully'));
-}
-
-    public function destroy(Document $document) {
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') abort(403);
-        Storage::delete($document->file_path);
-        $document->delete();
-        return back()->with('success', __('Document deleted successfully'));
-    }
 
    public function share(Request $request, Document $document)
 {

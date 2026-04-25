@@ -14,10 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'setLanguage' => \App\Http\Middleware\SetLanguage::class,
+            'is_admin' => \App\Http\Middleware\IsAdmin::class,
         ]);
         $middleware->web(append: [
             \App\Http\Middleware\SetLanguage::class,
         ]);
+        
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

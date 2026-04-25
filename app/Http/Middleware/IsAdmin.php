@@ -8,13 +8,13 @@ use Symfony\Component\HttpFoundation\Response;
 
 class IsAdmin
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  Closure(Request): (Response)  $next
-     */
     public function handle(Request $request, Closure $next): Response
     {
-        return $next($request);
+        if (auth()->check() && auth()->user()->role_level === 'admin') {
+            return $next($request); // Silakan lewat
+        }
+
+        // Jika bukan admin, tendang ke halaman 403 Forbidden
+        abort(403, 'Akses Ditolak!');
     }
 }

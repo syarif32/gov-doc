@@ -99,5 +99,16 @@
     "system_desc": "Akses ruang kerja kolaboratif, kelola arsip, dan amankan data internal secara efisien.",
     "feature_1": "Infrastruktur Terenkripsi",
     "feature_2": "Sinkronisasi Real-time",
-    "developed_by": "Sistem Dikembangkan Oleh"
+    "developed_by": "Sistem Dikembangkan Oleh",
+    "System Architect": "Arsitek Sistem",
+    "System Health": "Kesehatan Sistem",
+    "Encrypted & Secure": "Terenkripsi & Aman",
+    "IP Address": "Alamat IP",
+    "User Logged Out": "Pengguna Keluar",
+    "Updated user ID": "Memperbarui ID Pengguna",
+    "Uploaded document": "Mengunggah dokumen",
+    "Created new department": "Membuat departemen baru",
+    "Revoked access permission ID": "Mencabut ID izin akses",
+    "for document ID": "untuk ID dokumen",
+    "to folder ID": "ke ID folder"
 }

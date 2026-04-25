@@ -22,7 +22,7 @@ class SetLanguage
         elseif (session()->has('locale')) {
             App::setLocale(session()->get('locale'));
         }
-
+        \Carbon\Carbon::setLocale('id');
         return $next($request);
     }
 }
