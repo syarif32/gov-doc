@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
- public function index(Request $request)
+    public function index(Request $request)
     {
         $user = auth()->user();
         $query = Document::query();
@@ -23,7 +23,7 @@ class DocumentController extends Controller
         if ($request->filled('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
         }
-        
+
         // Sortir berdasarkan Tanggal Spesifik
         if ($request->filled('tanggal')) {
             $query->whereDate('created_at', $request->tanggal);
@@ -38,18 +38,18 @@ class DocumentController extends Controller
         if ($user->role_level === 'admin') {
             $documents = $query->with(['owner', 'folder', 'permissions.user', 'permissions.department'])->latest()->paginate(20);
         } else {
-            $documents = $query->where(function($q) use ($user) {
+            $documents = $query->where(function ($q) use ($user) {
                 $q->where('owner_id', $user->id)
-                  ->orWhereHas('permissions', function ($pq) use ($user) {
-                      $pq->where('user_id', $user->id)
-                         ->orWhere('department_id', $user->department_id);
-                  });
+                    ->orWhereHas('permissions', function ($pq) use ($user) {
+                        $pq->where('user_id', $user->id)
+                            ->orWhere('department_id', $user->department_id);
+                    });
             })
-            ->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
-            ->latest()
-            ->paginate(20);
+                ->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
+                ->latest()
+                ->paginate(20);
         }
-        
+
         // Data untuk Dropdown di UI
         $users = User::where('id', '!=', $user->id)->get();
         $folders = Folder::with('department')->get();
@@ -57,11 +57,40 @@ class DocumentController extends Controller
 
         return view('documents.index', compact('documents', 'users', 'folders', 'departments'));
     }
+    // Fungsi Baru: Menampilkan HANYA dokumen milik user yang login
+    public function myDocuments(Request $request)
+    {
+        $user = auth()->user();
 
-    // --- FUNGSI BARU: Bikin File Tanpa Upload ---
+        // Kunci query HANYA untuk dokumen yang dibuat oleh user ini
+        $query = Document::where('owner_id', $user->id);
+
+        // --- FITUR PENCARIAN & SORTIR (Sama seperti index) ---
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%' . $request->search . '%');
+        }
+        if ($request->filled('tanggal')) {
+            $query->whereDate('created_at', $request->tanggal);
+        }
+        if ($request->filled('folder_id')) {
+            $query->where('folder_id', $request->folder_id);
+        }
+
+        $documents = $query->with(['folder', 'permissions.user', 'permissions.department'])
+            ->latest()
+            ->paginate(20);
+
+        // Data untuk Dropdown di UI
+        $users = User::where('id', '!=', $user->id)->get();
+        $folders = Folder::with('department')->get();
+        $departments = Department::all();
+
+        // Kita buat view baru bernama 'my-documents'
+        return view('documents.my-documents', compact('documents', 'users', 'folders', 'departments'));
+    }
+
     public function store(Request $request, \App\Services\GoogleDriveService $googleDriveService)
     {
-        // SOLUSI MASALAH 3 (Infinite Loading): Bungkus dengan Try-Catch
         try {
             $request->validate([
                 'title' => 'required|string|max:255',
@@ -73,43 +102,42 @@ class DocumentController extends Controller
             $extension = strtolower($file->getClientOriginalExtension());
             $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
 
-            // Dapatkan nama Departemen & Tahun untuk Auto-Folder
-            $folderDb = \App\Models\Folder::with('department')->find($request->folder_id);
-            $autoFolderName = ($folderDb->department->name ?? 'Umum') . " - " . date('Y');
+            // PENYESUAIAN: Ambil ID Google Drive dari folder yang dipilih
+            $folderDb = \App\Models\Folder::find($request->folder_id);
+            // Jika folder tersebut punya ID Google, gunakan. Jika tidak, lempar ke folder root utama di .env
+            $targetFolderId = $folderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
 
+            // --- PERUBAHAN DI SINI: Semua file masuk ke Google Drive ---
+            if (in_array($extension, $googleTypes)) {
+                // Lempar ID folder tersebut agar file masuk ke dalamnya secara presisi (Live Edit)
+                $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title, $targetFolderId);
+            } else {
+                // Untuk PDF, ZIP, Gambar: Upload sebagai file murni ke Google Drive (Preview/Download)
+                $googleFileId = $googleDriveService->uploadBasicFile($file, $request->title, $targetFolderId);
+            }
+
+            // Kerangka data database (Semua file_path sekarang diarahkan ke Cloud)
             $docData = [
                 'title' => $request->title,
                 'folder_id' => $request->folder_id,
                 'extension' => $extension,
                 'file_size' => $file->getSize(),
                 'owner_id' => auth()->id(),
+                'google_file_id' => $googleFileId,
+                'file_path' => 'Cloud/GoogleDrive', 
             ];
-
-            if (in_array($extension, $googleTypes)) {
-                // Cari atau buat foldernya di Google Drive
-                $targetFolderId = $googleDriveService->getOrCreateFolder($autoFolderName);
-                
-                // Lempar ID folder tersebut agar file masuk ke dalamnya
-                $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title, $targetFolderId);
-                
-                $docData['google_file_id'] = $googleFileId;
-                $docData['file_path'] = 'Cloud/GoogleDrive';
-            } else {
-                $path = $file->store('private/documents/' . $request->folder_id);
-                $docData['file_path'] = $path;
-            }
 
             $doc = Document::create($docData);
             auth()->user()->logAction("Uploaded document: " . $doc->title);
-            
+
             return back()->with('success', __('Dokumen berhasil diunggah dan terorganisir.'));
 
         } catch (\Exception $e) {
-            // Jika ada error (termasuk untuk user biasa), tampilkan errornya! Tidak loading terus.
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
 
+    // --- FUNGSI: Bikin File Tanpa Upload ---
     public function storeBlank(Request $request, \App\Services\GoogleDriveService $googleDriveService)
     {
         try {
@@ -119,13 +147,12 @@ class DocumentController extends Controller
                 'folder_id' => 'required|exists:folders,id',
             ]);
 
-            $folderDb = \App\Models\Folder::with('department')->find($request->folder_id);
-            $autoFolderName = ($folderDb->department->name ?? 'Umum') . " - " . date('Y');
+            // PENYESUAIAN: Ambil ID Google Drive dari folder yang dipilih
+            $folderDb = \App\Models\Folder::find($request->folder_id);
+            // Jika folder tersebut punya ID Google, gunakan. Jika tidak, lempar ke folder root utama di .env
+            $targetFolderId = $folderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
 
-            // Cari atau buat foldernya
-            $targetFolderId = $googleDriveService->getOrCreateFolder($autoFolderName);
-
-            // Bikin file kosong di dalam folder tersebut
+            // Bikin file kosong di dalam folder tersebut secara presisi
             $googleFileId = $googleDriveService->createBlankFile($request->title, $request->type, $targetFolderId);
 
             $doc = Document::create([
@@ -145,8 +172,8 @@ class DocumentController extends Controller
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
-
-    public function update(Request $request, Document $document)
+    // --- FUNGSI: Edit Dokumen ---
+    public function update(Request $request, Document $document, \App\Services\GoogleDriveService $googleDriveService)
     {
         if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
             abort(403);
@@ -158,17 +185,26 @@ class DocumentController extends Controller
             'folder_id' => 'required|exists:folders,id',
         ]);
 
-        // SOLUSI MASALAH 4: Jika folder_id berubah, pindahkan juga di Google Drive
+        // 1. Logika Pindah Folder (Move)
         if ($document->folder_id != $request->folder_id && $document->google_file_id) {
-            $googleDriveService = app(\App\Services\GoogleDriveService::class);
-            
-            $newFolderDb = \App\Models\Folder::with('department')->find($request->folder_id);
-            $newFolderName = ($newFolderDb->department->name ?? 'Umum') . " - " . date('Y');
-            
-            $newGoogleFolderId = $googleDriveService->getOrCreateFolder($newFolderName);
-            $googleDriveService->moveFile($document->google_file_id, $newGoogleFolderId);
+            // Ambil data folder tujuan yang baru
+            $newFolderDb = \App\Models\Folder::find($request->folder_id);
+
+            // Ambil ID Google Folder-nya (jika kosong, lempar ke folder utama di .env)
+            $targetGoogleFolderId = $newFolderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
+
+            // Suruh robot memindahkan file ke folder tujuan yang SUDAH ADA
+            $googleDriveService->moveFile($document->google_file_id, $targetGoogleFolderId);
         }
 
+        // 2. BONUS: Logika Ganti Nama (Rename)
+        if ($document->title !== $request->title && $document->google_file_id) {
+            // Karena fungsi renameItem di service kita itu universal, 
+            // kita bisa memakainya untuk me-rename file juga!
+            $googleDriveService->renameItem($document->google_file_id, $request->title);
+        }
+
+        // 3. Simpan perubahan ke Database
         $document->update([
             'title' => $request->title,
             'description' => $request->description,
@@ -176,13 +212,14 @@ class DocumentController extends Controller
         ]);
 
         auth()->user()->logAction("Updated document ID: " . $document->id);
-        return redirect()->route('docs.index')->with('success', __('Dokumen berhasil diperbarui.'));
+        return redirect()->route('docs.index')->with('success', __('Dokumen berhasil diperbarui dan dipindahkan di Google Drive!'));
     }
 
     public function destroy(Document $document)
     {
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') abort(403);
-        
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin')
+            abort(403);
+
         // SOLUSI MASALAH 5: Hapus juga dari Google Drive (Masuk Trash)
         if ($document->google_file_id) {
             $googleDriveService = app(\App\Services\GoogleDriveService::class);
@@ -192,11 +229,11 @@ class DocumentController extends Controller
         if ($document->file_path && $document->file_path !== 'Cloud/GoogleDrive') {
             Storage::delete($document->file_path);
         }
-        
+
         $document->delete();
         return back()->with('success', __('Dokumen berhasil dihapus dari sistem dan Google Drive.'));
     }
-   
+
     public function editor(Document $document)
     {
         // Cek Keamanan: Apakah user berhak melihat file ini?
@@ -218,7 +255,8 @@ class DocumentController extends Controller
     }
 
     // Fungsi download, edit, update, destroy, dan share tetap sama seperti kode aslimu
-    public function download(Document $document) {
+    public function download(Document $document)
+    {
         $user = auth()->user();
         $hasPermission = DocumentPermission::where('document_id', $document->id)
             ->where(function ($q) use ($user) {
@@ -232,57 +270,57 @@ class DocumentController extends Controller
     }
 
     public function edit(Document $document)
-{
-    // Hanya owner atau admin yang bisa edit metadata
-    if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-        abort(403, 'Unauthorized access.');
+    {
+        // Hanya owner atau admin yang bisa edit metadata
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        // Ambil daftar semua folder untuk dropdown
+        $folders = \App\Models\Folder::with('department')->get();
+
+        return view('documents.edit', compact('document', 'folders'));
     }
 
-    // Ambil daftar semua folder untuk dropdown
-    $folders = \App\Models\Folder::with('department')->get();
 
-    return view('documents.edit', compact('document', 'folders'));
-}
+    public function share(Request $request, Document $document)
+    {
+        if ($document->owner_id !== auth()->id()) {
+            abort(403);
+        }
 
+        $request->validate([
+            'share_type' => 'required|in:user,department',
+            'user_id' => 'required_if:share_type,user|exists:users,id',
+            'department_id' => 'required_if:share_type,department|exists:departments,id',
+            'access_level' => 'required|in:read,write'
+        ]);
 
-   public function share(Request $request, Document $document)
-{
-    if ($document->owner_id !== auth()->id()) {
-        abort(403);
+        DocumentPermission::updateOrCreate(
+            [
+                'document_id' => $document->id,
+                'user_id' => $request->share_type === 'user' ? $request->user_id : null,
+                'department_id' => $request->share_type === 'department' ? $request->department_id : null,
+            ],
+            ['access_level' => $request->access_level]
+        );
+
+        return back()->with('success', __('Berhasil membagikan dokumen ke grup/user'));
     }
+    /**
+     * Mencabut akses (Unshare) dari user atau departemen tertentu.
+     */
+    public function unshare(\App\Models\DocumentPermission $permission)
+    {
+        // Cek keamanan: Pastikan hanya pemilik asli dokumen atau admin yang bisa mencabut akses
+        if ($permission->document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+            abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
+        }
 
-    $request->validate([
-        'share_type' => 'required|in:user,department',
-        'user_id' => 'required_if:share_type,user|exists:users,id',
-        'department_id' => 'required_if:share_type,department|exists:departments,id',
-        'access_level' => 'required|in:read,write'
-    ]);
+        $permission->delete();
 
-    DocumentPermission::updateOrCreate(
-        [
-            'document_id' => $document->id, 
-            'user_id' => $request->share_type === 'user' ? $request->user_id : null,
-            'department_id' => $request->share_type === 'department' ? $request->department_id : null,
-        ],
-        ['access_level' => $request->access_level]
-    );
+        auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
 
-    return back()->with('success', __('Berhasil membagikan dokumen ke grup/user'));
-}
-/**
- * Mencabut akses (Unshare) dari user atau departemen tertentu.
- */
-public function unshare(\App\Models\DocumentPermission $permission)
-{
-    // Cek keamanan: Pastikan hanya pemilik asli dokumen atau admin yang bisa mencabut akses
-    if ($permission->document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
-        abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
+        return back()->with('success', __('Akses dokumen berhasil dicabut.'));
     }
-
-    $permission->delete();
-
-    auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
-
-    return back()->with('success', __('Akses dokumen berhasil dicabut.'));
-}
 }

@@ -46,12 +46,12 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
         Route::get('/', [DocumentController::class, 'index'])->name('index');
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
         Route::get('/download/{document}', [DocumentController::class, 'download'])->name('download');
+        Route::get('/my-documents', [DocumentController::class, 'myDocuments'])->name('myDocuments'); 
         // Tambahkan baris ini di dalam group prefix('documents')
 Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('editor');
         Route::get('/edit/{document}', [DocumentController::class, 'edit'])->name('edit');
         Route::put('/update/{document}', [DocumentController::class, 'update'])->name('update');
         Route::delete('/delete/{document}', [DocumentController::class, 'destroy'])->name('destroy');
-        // --------------------------------
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
         // TAMBAHKAN INI UNTUK BIKIN FILE BARU
         Route::post('/create-blank', [DocumentController::class, 'storeBlank'])->name('storeBlank');

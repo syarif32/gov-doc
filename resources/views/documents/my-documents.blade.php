@@ -1,17 +1,20 @@
 @extends('layouts.admin')
-@if(session('error'))
-    <div class="alert alert-danger">{{ session('error') }}</div>
-@endif
+
 @section('content')
     <div class="dashboard-container">
+        
+        @if(session('error'))
+            <div class="alert alert-danger mb-4 rounded-4 shadow-sm border-0">{{ session('error') }}</div>
+        @endif
+
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-2 stagger-1">
             <div class="d-flex align-items-center mb-3 mb-md-0">
-                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
-                    <i class="bi bi-folder2-open fs-4"></i>
+                <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                    <i class="bi bi-person-workspace fs-4"></i>
                 </div>
                 <div>
-                    <h2 class="fw-bold text-dark mb-0" style="letter-spacing: -0.5px;">{{ __('Document Center') }}</h2>
-                    <p class="text-secondary small mb-0">{{ __('Securely manage, store, and share enterprise files') }}</p>
+                    <h2 class="fw-bold text-dark mb-0" style="letter-spacing: -0.5px;">{{ __('My Documents') }}</h2>
+                    <p class="text-secondary small mb-0">{{ __('Area kerja pribadi Anda. Semua dokumen di sini adalah milik Anda.') }}</p>
                 </div>
             </div>
             
@@ -28,7 +31,7 @@
 
         <div class="card border-0 shadow-sm rounded-4 mb-4 stagger-2">
             <div class="card-body p-3">
-                <form action="{{ route('docs.index') }}" method="GET" class="row g-2">
+                <form action="{{ route('docs.myDocuments') }}" method="GET" class="row g-2">
                     <div class="col-md-3">
                         <input type="text" name="search" class="form-control border-0 bg-light" placeholder="{{ __('Cari nama dokumen...') }}" value="{{ request('search') }}">
                     </div>
@@ -49,23 +52,11 @@
                         <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search me-1"></i> {{ __('Filter') }}</button>
                     </div>
                     <div class="col-md-2">
-                        <a href="{{ route('docs.index') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise"></i> {{ __('Reset') }}</a>
+                        <a href="{{ route('docs.myDocuments') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise"></i> {{ __('Reset') }}</a>
                     </div>
                 </form>
             </div>
         </div>
-
-        @if (auth()->user()->role_level === 'admin')
-            <div class="alert bg-dark text-white border-0 shadow-sm rounded-4 d-flex align-items-center p-3 mb-4 stagger-2" role="alert">
-                <div class="bg-white bg-opacity-25 rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 40px; height: 40px;">
-                    <i class="bi bi-shield-lock-fill fs-5"></i>
-                </div>
-                <div>
-                    <strong class="tracking-wide text-uppercase small">{{ __('Administrator Privilege') }}</strong>
-                    <div class="small opacity-75">{{ __('Global override active. You have full visibility and control over all departmental documents.') }}</div>
-                </div>
-            </div>
-        @endif
 
         <div class="card md-card border-0 stagger-3 mb-4">
             <div class="card-body p-0">
@@ -156,19 +147,17 @@
                                                 </button>
                                             @endif
                                             
-                                          
-
-                                            @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
-                                                <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
-                                                    <i class="bi bi-gear"></i>
-                                                </a>
-                                                <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
-                                                        <i class="bi bi-trash3-fill"></i>
-                                                    </button>
-                                                </form>
-                                            @endif
+                                
+                                            <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
+                                                <i class="bi bi-gear"></i>
+                                            </a>
+                                            <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
+                                                    <i class="bi bi-trash3-fill"></i>
+                                                </button>
+                                            </form>
+                                            
                                         </div>
                                     </td>
                                 </tr>
@@ -177,7 +166,7 @@
                                     <td colspan="6" class="text-center py-5">
                                         <div class="text-secondary mb-2"><i class="bi bi-folder-x fs-1"></i></div>
                                         <div class="fw-medium">{{ __('Tidak ada dokumen ditemukan') }}</div>
-                                        <div class="small">Silakan ubah filter pencarian atau unggah dokumen baru.</div>
+                                        <div class="small">Silakan ubah filter pencarian atau buat dokumen baru.</div>
                                     </td>
                                 </tr>
                             @endforelse
@@ -432,7 +421,6 @@
         .md-file-input { border-radius: 10px; border: 2px dashed #dadce0; padding: 10px; background: #f8f9fa; }
         .file-icon-box { width: 48px; height: 48px; }
         
-        /* Mempercantik Pagination Bawaan Laravel Bootstrap 5 */
         .pagination { margin-bottom: 0; }
         .page-item.active .page-link { background-color: #212529; border-color: #212529; }
         .page-link { color: #212529; padding: 0.5rem 1rem; border-radius: 8px; margin: 0 3px; border: 1px solid #dee2e6; }

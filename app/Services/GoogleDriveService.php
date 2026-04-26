@@ -168,4 +168,77 @@ class GoogleDriveService
             \Log::error("Gagal menghapus file di Google Drive: " . $e->getMessage());
         }
     }
+    /**
+     * Membuat folder dengan Parent ID yang spesifik (Bisa Folder Utama atau Sub-Folder)
+     */
+    public function createSpecificFolder($folderName, $parentGoogleId = null)
+    {
+        // Jika tidak ada parent yang dikirim, gunakan folder utama dari .env
+        $parentId = $parentGoogleId ?? env('GOOGLE_DRIVE_FOLDER_ID');
+
+        try {
+            $fileMetadata = new \Google_Service_Drive_DriveFile([
+                'name' => $folderName,
+                'mimeType' => 'application/vnd.google-apps.folder',
+                'parents' => [$parentId]
+            ]);
+
+            $folder = $this->service->files->create($fileMetadata, ['fields' => 'id']);
+            $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
+            $this->service->permissions->create($folder->id, $permission);
+
+            return $folder->id;
+        } catch (\Exception $e) {
+            \Log::error("Gagal membuat folder di Drive: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function renameItem($googleId, $newName)
+    {
+        try {
+            $fileMetadata = new \Google_Service_Drive_DriveFile([
+                'name' => $newName
+            ]);
+
+            $this->service->files->update($googleId, $fileMetadata);
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Gagal mengubah nama item di Drive: " . $e->getMessage());
+            return false;
+        }
+    }
+    /**
+     * Upload File Biasa (PDF, ZIP, JPG) TANPA diubah ke format Google
+     */
+    public function uploadBasicFile($file, $title, $customFolderId = null)
+    {
+        $folderId = $customFolderId ?? env('GOOGLE_DRIVE_FOLDER_ID');
+
+        try {
+            $fileMetadata = new \Google_Service_Drive_DriveFile([
+                'name' => $title,
+                'parents' => [$folderId],
+            ]);
+
+            $content = file_get_contents($file->getRealPath());
+
+            $uploadedFile = $this->service->files->create($fileMetadata, [
+                'data' => $content,
+                'mimeType' => $file->getMimeType(), // Biarkan sesuai aslinya (PDF tetap PDF, ZIP tetap ZIP)
+                'uploadType' => 'multipart',
+                'fields' => 'id',
+            ]);
+
+            $fileId = $uploadedFile->id;
+
+            // Buka akses agar bisa didownload via link
+            $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
+            $this->service->permissions->create($fileId, $permission);
+
+            return $fileId;
+        } catch (\Exception $e) {
+            throw new \Exception("Gagal upload file ke Google Drive: " . $e->getMessage());
+        }
+    }
 }

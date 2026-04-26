@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Folder extends Model
 {
-    protected $fillable = ['name', 'parent_id', 'department_id'];
-
+   
+    protected $fillable = ['name', 'parent_id', 'department_id', 'google_folder_id'];
     // Get the parent folder
     public function parent()
     {

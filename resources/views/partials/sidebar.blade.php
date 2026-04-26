@@ -29,10 +29,13 @@
                 <i class="bi bi-grid-1x2"></i> <span>{{ __('Dashboard') }}</span>
             </a>
 
-            <a href="{{ route('docs.index') }}" class="nav-link side-link {{ request()->routeIs('docs.*') ? 'active' : '' }}">
+            <a href="{{ route('docs.index') }}" class="nav-link side-link {{ request()->routeIs('docs.index') ? 'active' : '' }}">
                 <i class="bi bi-folder2-open"></i> <span>{{ __('Documents') }}</span>
             </a>
-
+            
+            <a href="{{ route('docs.myDocuments') }}" class="nav-link side-link {{ request()->routeIs('docs.myDocuments') ? 'active' : '' }}">
+                <i class="bi bi-person-workspace"></i> <span>{{ __('My Documents') }}</span>
+            </a>
             <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-dots"></i> <span>{{ __('Messaging') }}</span>
                 <span class="badge bg-primary ms-auto rounded-pill px-2 py-1" style="font-size: 0.65rem;">New</span>
