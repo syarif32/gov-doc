@@ -217,23 +217,64 @@ class DocumentController extends Controller
         return redirect()->route('docs.index')->with('success', __('Dokumen berhasil diperbarui dan dipindahkan di Google Drive!'));
     }
 
-    public function destroy(Document $document)
+    // 1. Tampilkan Halaman Sampah
+    public function trash(\Illuminate\Http\Request $request)
     {
-        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin')
-            abort(403);
+        $query = Document::onlyTrashed()->where('owner_id', auth()->id());
 
-        // SOLUSI MASALAH 5: Hapus juga dari Google Drive (Masuk Trash)
+        // Jika user melakukan pencarian nama dokumen
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%' . $request->search . '%');
+        }
+
+        // Jika user melakukan filter berdasarkan tanggal dihapus
+        if ($request->filled('tanggal')) {
+            $query->whereDate('deleted_at', $request->tanggal);
+        }
+
+        $documents = $query->orderBy('deleted_at', 'desc')->paginate(10);
+
+        return view('documents.trash', compact('documents'));
+    }
+
+    // 2. Ubah fungsi destroy (Menghapus Sementara / Buang ke Sampah)
+    public function destroy(Document $document, \App\Services\GoogleDriveService $googleDriveService)
+    {
         if ($document->google_file_id) {
-            $googleDriveService = app(\App\Services\GoogleDriveService::class);
-            $googleDriveService->deleteFile($document->google_file_id);
+            $googleDriveService->trashFile($document->google_file_id);
         }
 
-        if ($document->file_path && $document->file_path !== 'Cloud/GoogleDrive') {
-            Storage::delete($document->file_path);
+        $document->delete(); // Ini otomatis hanya mengisi kolom deleted_at
+
+        return back()->with('success', 'Dokumen berhasil dipindahkan ke Sampah.');
+    }
+
+    // 3. Fungsi Restore (Mengembalikan dari Sampah)
+    public function restore($id, \App\Services\GoogleDriveService $googleDriveService)
+    {
+        $document = Document::withTrashed()->findOrFail($id);
+
+        if ($document->google_file_id) {
+            $googleDriveService->restoreFile($document->google_file_id);
         }
 
-        $document->delete();
-        return back()->with('success', __('Dokumen berhasil dihapus dari sistem dan Google Drive.'));
+        $document->restore(); // Mengosongkan kembali kolom deleted_at
+
+        return redirect()->route('docs.trash')->with('success', 'Dokumen berhasil dikembalikan.');
+    }
+
+    // 4. Hapus Permanen
+    public function forceDelete($id, \App\Services\GoogleDriveService $googleDriveService)
+    {
+        $document = Document::withTrashed()->findOrFail($id);
+
+        if ($document->google_file_id) {
+            $googleDriveService->permanentlyDeleteFile($document->google_file_id);
+        }
+
+        $document->forceDelete(); // Benar-benar hapus dari database
+
+        return redirect()->route('docs.trash')->with('success', 'Dokumen dihapus secara permanen.');
     }
 
     public function editor(Document $document)
@@ -325,4 +366,5 @@ class DocumentController extends Controller
 
         return back()->with('success', __('Akses dokumen berhasil dicabut.'));
     }
+    
 }

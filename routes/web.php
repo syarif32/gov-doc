@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\FolderController;
 
 // 1. Language Switcher (Publicly accessible)
 Route::get('lang/{locale}', function ($locale) {
@@ -59,7 +60,9 @@ Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('e
         Route::post('/share/{document}', [DocumentController::class, 'share'])->name('share');
         // Tambahkan di bawah route('docs.share') atau di grup route dokumen
        Route::delete('/permissions/{permission}', [\App\Http\Controllers\Document\DocumentController::class, 'unshare'])->name('unshare');
-
+       Route::get('/trash', [DocumentController::class, 'trash'])->name('trash');
+        Route::post('/{id}/restore', [DocumentController::class, 'restore'])->name('restore');
+        Route::delete('/{id}/force-delete', [DocumentController::class, 'forceDelete'])->name('forceDelete');
     });
 
   

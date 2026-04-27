@@ -2,6 +2,18 @@
 
 @section('content')
     <div class="dashboard-container">
+        
+        @if(session('success'))
+            <div class="alert alert-success mb-4 rounded-4 shadow-sm border-0 d-flex align-items-center">
+                <i class="bi bi-check-circle-fill fs-5 me-3"></i> {{ session('success') }}
+            </div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger mb-4 rounded-4 shadow-sm border-0 d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-3"></i> {{ session('error') }}
+            </div>
+        @endif
+
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-2 stagger-1">
             <div class="d-flex align-items-center mb-3 mb-md-0">
                 <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3"
@@ -110,9 +122,6 @@
                                                     <td class="py-3 text-secondary small font-monospace">
                                                         {{ $folder->created_at->format('d M Y') }}
                                                     </td>
-                                                  
-                                                        
-                                                        
                                                     
                                                     <td class="text-end pe-4 py-3">
                                                         <a href="{{ route('admin.folders.edit', $folder->id) }}"
@@ -121,8 +130,8 @@
                                                             <i class="bi bi-pencil-square"></i>
                                                         </a>
                                                         <form action="{{ route('admin.folders.destroy', $folder->id) }}"
-                                                            method="POST"
-                                                            onsubmit="return confirm('Hapus folder ini? Semua dokumen di dalamnya akan terhapus secara permanen!')">
+                                                            method="POST" class="d-inline"
+                                                            onsubmit="return confirm('PERINGATAN: Hapus folder ini? Sistem akan menolak jika masih ada dokumen di dalamnya.')">
                                                             @csrf
                                                             @method('DELETE')
                                                             <button type="submit"
@@ -191,7 +200,7 @@
                             Bidang (Pemilik)</label>
                         <div class="input-group-custom">
                             <span class="input-icon"><i class="bi bi-building"></i></span>
-                            <select name="department_id" class="form-select md-input" required>
+                            <select name="department_id" id="deptSelect" class="form-select md-input" required>
                                 <option value="" disabled selected>-- Tentukan Bidang --</option>
                                 @foreach($departments as $dept)
                                     <option value="{{ $dept->id }}">{{ $dept->name }}</option>
@@ -205,16 +214,16 @@
                             class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2 d-flex align-items-center">
                             <i class="bi bi-diagram-3 text-primary me-2"></i> Sub-Folder (Opsional)
                         </label>
-                        <select name="parent_id" class="form-select md-input bg-white">
-                            <option value="">-- Letakkan sebagai Folder Utama (Root) --</option>
+                        <select name="parent_id" id="subFolderSelect" class="form-select md-input bg-white">
+                            <option value="" class="default-opt">-- Pilih Bidang Terlebih Dahulu --</option>
                             @foreach($folders as $f)
-                                <option value="{{ $f->id }}">
-                                    [{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}
+                                <option value="{{ $f->id }}" data-dept="{{ $f->department_id }}" style="display:none;">
+                                    {{ $f->name }}
                                 </option>
                             @endforeach
                         </select>
                         <div class="form-text small mt-2">Pilih jika Anda ingin meletakkan folder ini di dalam folder yang
-                            sudah ada.</div>
+                            sudah ada (Sesuai Bidang).</div>
                     </div>
                 </div>
 
@@ -227,37 +236,47 @@
         </div>
     </div>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Tooltip Init
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+
+            // Logika Dinamis Sub-Folder
+            const deptSelect = document.getElementById('deptSelect');
+            const subFolderSelect = document.getElementById('subFolderSelect');
+            const allFolderOptions = subFolderSelect.querySelectorAll('option:not(.default-opt)');
+
+            deptSelect.addEventListener('change', function() {
+                const selectedDeptId = this.value;
+
+                // 1. Kembalikan ke pilihan default
+                subFolderSelect.value = "";
+                subFolderSelect.querySelector('.default-opt').innerText = "-- Letakkan sebagai Folder Utama (Root) --";
+
+                // 2. Sembunyikan semua opsi folder dulu
+                allFolderOptions.forEach(opt => {
+                    opt.style.display = 'none';
+                    
+                    // 3. Tampilkan HANYA folder yang 'data-dept'-nya sama dengan bidang yang dipilih
+                    if(opt.getAttribute('data-dept') === selectedDeptId) {
+                        opt.style.display = 'block';
+                    }
+                });
+            });
+        });
+    </script>
+
     <style>
-        /* Custom Vertical Pills Styling */
-        .custom-v-pills .nav-link {
-            border-radius: 8px;
-            color: #5f6368;
-            padding: 12px 16px;
-            transition: all 0.2s ease;
-            background: transparent;
-            border: 1px solid transparent;
-        }
-
-        .custom-v-pills .nav-link:hover:not(.active) {
-            background-color: #f1f3f4;
-            color: #202124;
-        }
-
-        .custom-v-pills .nav-link.active {
-            background-color: #e8f0fe !important;
-            color: #1a73e8 !important;
-            border: 1px solid #d2e3fc;
-        }
-
-        .custom-v-pills .nav-link.active .badge {
-            background-color: #1a73e8 !important;
-            color: #fff !important;
-        }
-
-        /* Modal Specific Form adjustments */
-        select.md-input {
-            appearance: none;
-            padding-right: 36px;
-        }
+        .custom-v-pills .nav-link { border-radius: 8px; color: #5f6368; padding: 12px 16px; transition: all 0.2s ease; background: transparent; border: 1px solid transparent; }
+        .custom-v-pills .nav-link:hover:not(.active) { background-color: #f1f3f4; color: #202124; }
+        .custom-v-pills .nav-link.active { background-color: #e8f0fe !important; color: #1a73e8 !important; border: 1px solid #d2e3fc; }
+        .custom-v-pills .nav-link.active .badge { background-color: #1a73e8 !important; color: #fff !important; }
+        select.md-input { appearance: none; padding-right: 36px; }
+        .input-group-custom { position: relative; }
+        .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 10; color: #5f6368; }
+        .md-input { padding-left: 40px !important; border-radius: 10px; border: 1px solid #dadce0; }
     </style>
 @endsection

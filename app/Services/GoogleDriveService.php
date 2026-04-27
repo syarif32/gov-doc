@@ -170,6 +170,50 @@ $extension = method_exists($file, 'getClientOriginalExtension')
             \Log::error("Gagal menghapus file di Google Drive: " . $e->getMessage());
         }
     }
+/**
+     * Memindahkan file ke Sampah (Trash) Google Drive
+     */
+    public function trashFile($fileId)
+    {
+        try {
+            $emptyFile = new \Google_Service_Drive_DriveFile(['trashed' => true]);
+            $this->service->files->update($fileId, $emptyFile);
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Gagal membuang ke sampah Drive: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mengembalikan file dari Sampah (Restore) Google Drive
+     */
+    public function restoreFile($fileId)
+    {
+        try {
+            $emptyFile = new \Google_Service_Drive_DriveFile(['trashed' => false]);
+            $this->service->files->update($fileId, $emptyFile);
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Gagal restore file dari Drive: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Menghapus file secara permanen dari Google Drive
+     */
+    public function permanentlyDeleteFile($fileId)
+    {
+        try {
+            $this->service->files->delete($fileId);
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Gagal hapus permanen di Drive: " . $e->getMessage());
+            return false;
+        }
+    }
+
     /**
      * Membuat folder dengan Parent ID yang spesifik (Bisa Folder Utama atau Sub-Folder)
      */

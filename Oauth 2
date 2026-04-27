@@ -1,0 +1,89 @@
+TAHAP 1:(Google Cloud Console)
+Ini ibarat kita meminta izin ke Google untuk membangun sebuah sistem yang akan numpang lewat di infrastruktur mereka.
+
+Buka browser dan pergi ke Google Cloud Console. Pastikan kamu login menggunakan akun Google yang akan dijadikan "Brankas Utama" (Bot Service).
+
+Di pojok kiri atas (sebelah logo Google Cloud), klik Pilih Proyek (Select a project), lalu klik New Project.
+
+Beri nama proyeknya, misalnya: DMS Diskominfo System. Klik Create. Tunggu beberapa detik sampai proyek selesai dibuat, lalu pastikan proyek tersebut sudah terpilih di pojok kiri atas.
+
+Di menu pencarian atas, ketik Google Drive API dan tekan Enter.
+
+Klik Google Drive API dari hasil pencarian, lalu klik tombol biru ENABLE.
+
+TAHAP 2: (OAuth Consent Screen & Credentials)
+Sekarang kita membuat identitas aplikasimu agar Google tahu siapa yang meminta akses.
+
+Buka menu navigasi kiri (garis tiga) 👉 APIs & Services 👉 OAuth consent screen.
+
+Pilih tipe External (karena kita belum pakai Google Workspace Premium). Klik Create.
+
+Isi form yang wajib saja:
+
+App name: Sistem Dokumen (atau nama aplikasimu)
+
+User support email: Pilih emailmu dari dropdown.
+
+Scroll ke paling bawah ke bagian Developer contact information, isi lagi dengan emailmu.
+
+Klik Save and Continue terus-menerus sampai selesai (Step 2, 3, 4 skip saja).
+
+Setelah itu, pindah ke menu sebelah kiri 👉 Credentials.
+
+Klik + CREATE CREDENTIALS di bagian atas, lalu pilih OAuth client ID.
+
+Pilih Application type 👉 Web application. Beri nama bebas, misal: Laravel App.
+
+Scroll ke bagian Authorized redirect URIs. Klik + ADD URI.
+
+💥 SANGAT PENTING: Masukkan URL ini persis tanpa kurang satu huruf pun: https://developers.google.com/oauthplayground (Ini adalah kunci agar kita bisa memancing Refresh Token nanti).
+
+Klik Create.
+
+Akan muncul pop-up berisi Client ID dan Client Secret. Jangan ditutup dulu, biarkan layar ini menyala atau copy keduanya ke Notepad. (Bisa juga klik Download JSON, tapi untuk Laravel kita hanya butuh ID dan Secret-nya).
+
+TAHAP 3: Memancing Refresh Token (Google OAuth 2.0 Playground)
+Ini tahap yang paling krusial. Kita menggunakan Playground milik Google untuk menukarkan Client ID tadi dengan "Kunci Cadangan" (Refresh Token) yang tidak akan pernah kedaluwarsa.
+
+Buka tab baru, masuk ke Google OAuth 2.0 Playground.
+
+Di pojok kanan atas, klik logo Gear (OAuth 2.0 configuration).
+
+Centang kotak "Use your own OAuth credentials".
+
+Masukkan OAuth Client ID dan OAuth Client secret yang kamu dapat dari Tahap 2 tadi ke dalam kotak yang tersedia. Klik Close pada menu Gear tersebut.
+
+Di sebelah kiri (Step 1), scroll dan cari Drive API v3. Klik agar menunya terbuka ke bawah.
+
+Centang URL yang paling sakti ini: https://www.googleapis.com/auth/drive (Ini memberikan akses penuh untuk membaca dan menulis file).
+
+Klik tombol biru Authorize APIs.
+
+Kamu akan diarahkan ke halaman Login Google. Pilih akun "Bot Service" tadi.
+
+JANGAN PANIK jika muncul layar peringatan "Google hasn’t verified this app". Ini normal karena aplikasi kita belum dipublikasikan resmi. Klik tulisan Advanced (Lanjutan), lalu klik Go to Sistem Dokumen (unsafe).
+
+Klik Allow / Lanjutkan untuk memberi izin.
+
+Kamu akan dilempar kembali ke layar Playground. Sekarang perhatikan layar kiri (Step 2).
+
+Klik tombol biru Exchange authorization code for tokens.
+
+TARAAA! Di Step 3, kamu akan melihat baris Refresh token:. Copy kode panjang tersebut (biasanya diawali dengan angka 1//...). Ini adalah harta karun utamamu!
+
+TAHAP 4: Memasang "Mesin" di Laravel (.env)
+Sekarang tinggal memasukkan semua "harta karun" yang kita kumpulkan ke ruang mesin Laravel.
+
+Buka file .env di VS Code.
+
+Tambahkan variabel ini (ganti nilainya dengan yang kamu dapatkan):
+
+Cuplikan kode
+# GOOGLE DRIVE API CREDENTIALS
+GOOGLE_CLIENT_ID="ISI_DENGAN_CLIENT_ID_DARI_TAHAP_2.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="ISI_DENGAN_CLIENT_SECRET_DARI_TAHAP_2"
+GOOGLE_REFRESH_TOKEN="1//ISI_DENGAN_REFRESH_TOKEN_DARI_TAHAP_3"
+GOOGLE_DRIVE_FOLDER_ID="ISI_DENGAN_ID_FOLDER_MASTER_DI_DRIVE"
+(Catatan: Cara dapat ID Folder Drive adalah buka folder tersebut di browser, lalu copy teks acak di URL setelah folders/).
+
+Di terminal VS Code, jalankan php artisan config:clear agar Laravel membaca .env yang baru.

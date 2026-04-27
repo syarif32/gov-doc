@@ -36,6 +36,9 @@
             <a href="{{ route('docs.myDocuments') }}" class="nav-link side-link {{ request()->routeIs('docs.myDocuments') ? 'active' : '' }}">
                 <i class="bi bi-person-workspace"></i> <span>{{ __('My Documents') }}</span>
             </a>
+            <a href="{{ route('docs.trash') }}" class="nav-link side-link {{ request()->routeIs('docs.trash') ? 'active' : '' }}">
+                <i class="bi bi-trash3"></i> <span>{{ __('Trash') }}</span>
+            </a>
             <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-dots"></i> <span>{{ __('Messaging') }}</span>
                 <span class="badge bg-primary ms-auto rounded-pill px-2 py-1" style="font-size: 0.65rem;">New</span>
