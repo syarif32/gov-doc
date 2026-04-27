@@ -6,13 +6,27 @@
                 <i class="bi bi-list fs-4 text-dark"></i>
             </button>
 
-            <div class="header-search d-none d-md-flex align-items-center position-relative" style="max-width: 480px; width: 100%;">
-                <i class="bi bi-search position-absolute text-muted ms-3"></i>
-                <input type="text" class="form-control search-input" placeholder="{{ __('Search documents, users, or messages...') }}" autocomplete="off">
-                <button class="btn btn-sm position-absolute end-0 text-muted me-1 border-0 hover-bg-transparent">
-                    <i class="bi bi-sliders"></i>
-                </button>
-            </div>
+            <div class="header-user-info d-none d-md-flex align-items-center">
+    
+    
+        
+        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-2"
+            style="width: 32px; height: 32px; font-size: 0.9rem;">
+            {{ strtoupper(substr(auth()->user()->full_name, 0, 1)) }}
+        </div>
+
+        <div class="d-flex flex-column lh-sm">
+            <span class="fw-semibold text-dark small">
+                {{ auth()->user()->full_name }}
+            </span>
+            <span class="text-muted small">
+                {{ auth()->user()->department->name ?? 'Department' }}
+            </span>
+        </div>
+
+    
+
+</div>
         </div>
 
         <div class="d-flex align-items-center gap-2 gap-md-3">

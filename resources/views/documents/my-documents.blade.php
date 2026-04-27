@@ -1,12 +1,11 @@
 @extends('layouts.admin')
 
+@if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+@endif
+
 @section('content')
     <div class="dashboard-container">
-        
-        @if(session('error'))
-            <div class="alert alert-danger mb-4 rounded-4 shadow-sm border-0">{{ session('error') }}</div>
-        @endif
-
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-2 stagger-1">
             <div class="d-flex align-items-center mb-3 mb-md-0">
                 <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
@@ -58,10 +57,22 @@
             </div>
         </div>
 
+        @if (auth()->user()->role_level === 'admin')
+            <div class="alert bg-dark text-white border-0 shadow-sm rounded-4 d-flex align-items-center p-3 mb-4 stagger-2" role="alert">
+                <div class="bg-white bg-opacity-25 rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 40px; height: 40px;">
+                    <i class="bi bi-shield-lock-fill fs-5"></i>
+                </div>
+                <div>
+                    <strong class="tracking-wide text-uppercase small">{{ __('Administrator Privilege') }}</strong>
+                    <div class="small opacity-75">{{ __('Global override active. You have full visibility and control over all departmental documents.') }}</div>
+                </div>
+            </div>
+        @endif
+
         <div class="card md-card border-0 stagger-3 mb-4">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-borderless align-middle mb-0">
+                    <table class="table table-hover table-borderless align-middle mb-0" id="documentTable">
                         <thead class="border-bottom border-light bg-light bg-opacity-50">
                             <tr>
                                 <th class="ps-4 py-3 text-secondary small fw-semibold text-uppercase tracking-wide" style="width: 35%;">{{ __('File Name') }}</th>
@@ -116,9 +127,26 @@
                                     <td class="py-3 text-secondary font-monospace small">
                                         {{ $doc->file_size == 0 ? '-' : number_format($doc->file_size / 1024, 1) . ' KB' }}
                                     </td>
-                                    <td class="py-3 text-secondary small">
-                                        <div class="fw-medium text-dark">{{ $doc->created_at->format('d M Y') }}</div>
+                                    
+                                    <td class="py-3">
+                                        <div class="fw-medium text-dark small mb-1">{{ $doc->created_at->format('d M Y') }}</div>
+                                        
+                                        @if(str_contains(strtolower($doc->file_path), 'gagal') || $doc->status == 'failed')
+                                            <span class="badge bg-danger border border-danger-subtle shadow-sm" style="font-size: 0.7rem; padding: 5px 8px;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Gagal Upload
+                                            </span>
+                                        @elseif($doc->google_file_id && $doc->file_path == 'Cloud/GoogleDrive')
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle shadow-sm" style="font-size: 0.7rem; padding: 5px 8px;">
+                                                <i class="bi bi-cloud-check-fill me-1 fs-6"></i> successfully uploaded 
+                                            </span>
+                                        @else
+                                            <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm syncing-indicator" style="font-size: 0.7rem; padding: 5px 8px;">
+                                                <span class="spinner-grow spinner-grow-sm me-1 text-danger" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
+                                                Menyinkronkan...
+                                            </span>
+                                        @endif
                                     </td>
+
                                     <td class="text-end pe-4 py-3">
                                         <div class="d-flex justify-content-end gap-1">
                                             
@@ -136,28 +164,28 @@
                                                     <i class="bi bi-eye-fill me-2"></i> Lihat
                                                 </a>
                                             @else
-                                                <a href="{{ route('docs.download', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-primary hover-elevate shadow-sm" data-bs-toggle="tooltip" title="Download Lokal">
-                                                    <i class="bi bi-cloud-arrow-down-fill"></i>
-                                                </a>
+                                                <button class="btn btn-sm btn-icon btn-light text-secondary shadow-sm" data-bs-toggle="tooltip" title="Sedang diproses..." disabled>
+                                                    <i class="bi bi-hourglass-split"></i>
+                                                </button>
                                             @endif
 
                                             @if ($doc->owner_id == auth()->id())
-                                                <button class="btn btn-sm btn-icon btn-light text-info hover-elevate" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">
+                                                <button type="button" class="btn btn-sm btn-icon btn-light text-info hover-elevate shadow-sm" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">
                                                     <i class="bi bi-share-fill"></i>
                                                 </button>
                                             @endif
                                             
-                                
-                                            <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
-                                                <i class="bi bi-gear"></i>
-                                            </a>
-                                            <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
-                                                    <i class="bi bi-trash3-fill"></i>
-                                                </button>
-                                            </form>
-                                            
+                                            @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
+                                                <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
+                                                    <i class="bi bi-gear"></i>
+                                                </a>
+                                                <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
+                                                        <i class="bi bi-trash3-fill"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -181,10 +209,9 @@
         </div>
     </div>
 
-
     <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <form action="{{ route('docs.store') }}" method="POST" enctype="multipart/form-data" class="modal-content border-0 shadow-lg rounded-4">
+            <form action="{{ route('docs.store') }}" method="POST" enctype="multipart/form-data" class="modal-content border-0 shadow-lg rounded-4" id="uploadForm">
                 @csrf
                 <div class="modal-header border-bottom-0 pb-0 px-4 pt-4">
                     <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
@@ -388,20 +415,40 @@
                             <button type="button" class="btn btn-light fw-medium px-4" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
                             <button type="submit" class="btn btn-info text-white md-btn px-5"><i class="bi bi-send me-2"></i> {{ __('Grant Access') }}</button>
                         </div>
-                        </form>
+                            </form>
                     </div>
                 </div>
             </div>
         @endif
     @endforeach
 
+    <div id="progressOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center" style="background-color: rgba(0, 0, 0, 0.6); z-index: 9999; backdrop-filter: blur(4px);">
+        <div class="p-4 bg-white rounded-4 shadow-lg border-0" style="width: 90%; max-width: 400px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div> Mengunggah File...
+                </h6>
+                <span id="uploadProgressText" class="fw-bold text-primary small">0%</span>
+            </div>
+            <div class="progress" style="height: 12px; border-radius: 8px;">
+                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <p class="text-secondary small mt-3 mb-0 text-center" id="uploadStatusMessage">Mentransfer dari PC Anda ke Server Lokal...</p>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl)
-            })
+            initTooltips();
+            checkSyncStatus(); // Jalankan auto-refresh untuk badge kuning
         });
+
+        function initTooltips() {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }
 
         function toggleShareUI(val, id) {
             if(val === 'user') {
@@ -410,6 +457,91 @@
             } else {
                 document.getElementById('user_field_' + id).style.display = 'none';
                 document.getElementById('dept_field_' + id).style.display = 'block';
+            }
+        }
+
+        // LOGIKA AJAX UNTUK PROGRESS BAR (%)
+        document.getElementById('uploadForm').addEventListener('submit', function (e) {
+            e.preventDefault(); // Cegah reload bawaan form
+
+            var form = this;
+            var formData = new FormData(form);
+            var xhr = new XMLHttpRequest();
+
+            // 1. Sembunyikan Modal Upload
+            var uploadModalEl = document.getElementById('uploadModal');
+            var uploadModal = bootstrap.Modal.getInstance(uploadModalEl);
+            if (uploadModal) uploadModal.hide();
+
+            // 2. Tampilkan UI Progress Bar
+            var progressContainer = document.getElementById('progressOverlay');
+            var progressBar = document.getElementById('uploadProgressBar');
+            var progressText = document.getElementById('uploadProgressText');
+            var statusMessage = document.getElementById('uploadStatusMessage');
+            
+            progressContainer.classList.remove('d-none');
+            progressContainer.classList.add('d-flex');
+
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            // 3. Pantau Progress Transfer Data (Browser ke Lokal)
+            xhr.upload.addEventListener('progress', function (e) {
+                if (e.lengthComputable) {
+                    var percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    progressBar.setAttribute('aria-valuenow', percentComplete);
+                    progressText.innerText = percentComplete + '%';
+                }
+            });
+
+            // 4. Setelah Transfer ke Lokal Selesai
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    progressBar.classList.remove('bg-primary');
+                    progressBar.classList.add('bg-success');
+                    statusMessage.innerHTML = "<span class='text-success fw-bold'><i class='bi bi-check-circle-fill'></i> Selesai! Memproses Antrean Drive...</span>";
+                    
+                    // Reload halaman setelah 1 detik untuk memunculkan tabel
+                    setTimeout(() => {
+                        window.location.reload(); 
+                    }, 1000);
+                } else {
+                    alert("Terjadi kesalahan sistem saat mengunggah. Coba lagi.");
+                    progressContainer.classList.remove('d-flex');
+                    progressContainer.classList.add('d-none');
+                }
+            };
+
+            xhr.onerror = function () {
+                alert("Koneksi terputus! Gagal mengunggah file.");
+                progressContainer.classList.remove('d-flex');
+                progressContainer.classList.add('d-none');
+            };
+
+            xhr.send(formData);
+        });
+
+        // FUNGSI AUTO-REFRESH SILENT UNTUK TABEL
+        function checkSyncStatus() {
+            let syncingBadges = document.querySelectorAll('.syncing-indicator');
+            if(syncingBadges.length > 0) {
+                // Jika masih ada dokumen berstatus Kuning, cek perubahannya 5 detik lagi
+                setTimeout(() => {
+                    fetch(window.location.href)
+                    .then(response => response.text())
+                    .then(html => {
+                        let parser = new DOMParser();
+                        let doc = parser.parseFromString(html, 'text/html');
+                        
+                        // Ambil hanya HTML tabel terbaru, lalu timpa tanpa reload halaman
+                        let newTableBody = doc.querySelector('.table-responsive').innerHTML;
+                        document.querySelector('.table-responsive').innerHTML = newTableBody;
+                        
+                        initTooltips(); 
+                        checkSyncStatus(); // Loop terus sampai semua warna Kuning hilang
+                    });
+                }, 5000); 
             }
         }
     </script>

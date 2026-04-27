@@ -72,7 +72,9 @@ class GoogleDriveService
                 'parents' => [$folderId], // File sekarang masuk ke dalam sub-folder yang benar!
             ]);
 
-            $extension = strtolower($file->getClientOriginalExtension());
+$extension = method_exists($file, 'getClientOriginalExtension') 
+                ? strtolower($file->getClientOriginalExtension()) 
+                : strtolower($file->getExtension());
             $mimeMap = [
                 'doc' => 'application/vnd.google-apps.document', 'docx' => 'application/vnd.google-apps.document',
                 'xls' => 'application/vnd.google-apps.spreadsheet', 'xlsx' => 'application/vnd.google-apps.spreadsheet',

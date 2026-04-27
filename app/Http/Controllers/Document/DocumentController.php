@@ -9,6 +9,7 @@ use App\Models\Folder;
 use App\Models\Department;
 use App\Models\DocumentPermission;
 use Illuminate\Http\Request;
+ use App\Jobs\UploadToGoogleDrive;
 use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
@@ -89,54 +90,55 @@ class DocumentController extends Controller
         return view('documents.my-documents', compact('documents', 'users', 'folders', 'departments'));
     }
 
-    public function store(Request $request, \App\Services\GoogleDriveService $googleDriveService)
+   
+    public function store(Request $request)
     {
         try {
             $request->validate([
                 'title' => 'required|string|max:255',
-                'file' => 'required|file|max:51200',
+                'file' => 'required|file|max:202400', // 50MB Max
                 'folder_id' => 'required|exists:folders,id',
             ]);
 
             $file = $request->file('file');
             $extension = strtolower($file->getClientOriginalExtension());
-            $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+            
+            // 1. Simpan ke gudang sementara di server lokal
+            $tempPath = $file->store('temp_uploads');
 
-            // PENYESUAIAN: Ambil ID Google Drive dari folder yang dipilih
+            // 2. Ambil ID Folder Tujuan Google
             $folderDb = \App\Models\Folder::find($request->folder_id);
-            // Jika folder tersebut punya ID Google, gunakan. Jika tidak, lempar ke folder root utama di .env
             $targetFolderId = $folderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
 
-            // --- PERUBAHAN DI SINI: Semua file masuk ke Google Drive ---
-            if (in_array($extension, $googleTypes)) {
-                // Lempar ID folder tersebut agar file masuk ke dalamnya secara presisi (Live Edit)
-                $googleFileId = $googleDriveService->uploadAndConvert($file, $request->title, $targetFolderId);
-            } else {
-                // Untuk PDF, ZIP, Gambar: Upload sebagai file murni ke Google Drive (Preview/Download)
-                $googleFileId = $googleDriveService->uploadBasicFile($file, $request->title, $targetFolderId);
-            }
-
-            // Kerangka data database (Semua file_path sekarang diarahkan ke Cloud)
+            // 3. Simpan data awal ke Database (Tandai status masih memproses)
             $docData = [
                 'title' => $request->title,
                 'folder_id' => $request->folder_id,
                 'extension' => $extension,
                 'file_size' => $file->getSize(),
                 'owner_id' => auth()->id(),
-                'google_file_id' => $googleFileId,
-                'file_path' => 'Cloud/GoogleDrive', 
+                'file_path' => 'Processing...', // Tanda bahwa sedang antre
             ];
-
+            
             $doc = Document::create($docData);
-            auth()->user()->logAction("Uploaded document: " . $doc->title);
 
-            return back()->with('success', __('Dokumen berhasil diunggah dan terorganisir.'));
+            // 4. CEK FORMAT: Apakah bisa di-Live Edit (Konversi)?
+            $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+            $isConvertible = in_array($extension, $googleTypes);
+
+            // 5. PANGGIL KURIR (Masukkan ke Antrean)!
+            // Dispatch akan membebaskan user tanpa harus menunggu Google API selesai
+            UploadToGoogleDrive::dispatch($doc->id, $tempPath, $targetFolderId, $isConvertible);
+
+            auth()->user()->logAction("Mengantrekan upload: " . $doc->title);
+
+            // User langsung diarahkan balik dalam waktu 0.1 detik!
+            return back()->with('success', __('File sedang diunggah ke awan. Anda bisa menutup halaman atau melakukan hal lain!'));
 
         } catch (\Exception $e) {
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
-
     // --- FUNGSI: Bikin File Tanpa Upload ---
     public function storeBlank(Request $request, \App\Services\GoogleDriveService $googleDriveService)
     {
