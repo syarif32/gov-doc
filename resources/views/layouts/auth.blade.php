@@ -499,7 +499,7 @@
 
     <div class="auth-side-bottom">
         <div class="lang-switcher">
-            <a href="{{ url('lang/id') }}" class="{{ app()->getLocale() == 'id' ? 'active' : '' }}">IDN</a>
+            <a href="{{ url('lang/ru') }}" class="{{ app()->getLocale() == 'ru' ? 'active' : '' }}">IDN</a>
             <a href="{{ url('lang/en') }}" class="{{ app()->getLocale() == 'en' ? 'active' : '' }}">ENG</a>
         </div>
         <div class="creator-wrapper">

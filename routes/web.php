@@ -56,7 +56,8 @@ Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('e
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
         // TAMBAHKAN INI UNTUK BIKIN FILE BARU
         Route::post('/create-blank', [DocumentController::class, 'storeBlank'])->name('storeBlank');
-
+        // FITUR PANCING ULANG SINKRONISASI
+        Route::post('/retry-sync/{id}', [\App\Http\Controllers\Document\DocumentController::class, 'retrySync'])->name('retrySync');
         Route::post('/share/{document}', [DocumentController::class, 'share'])->name('share');
         // Tambahkan di bawah route('docs.share') atau di grup route dokumen
        Route::delete('/permissions/{permission}', [\App\Http\Controllers\Document\DocumentController::class, 'unshare'])->name('unshare');

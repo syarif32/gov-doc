@@ -1,10 +1,11 @@
 @extends('layouts.admin')
 
+
+@section('content')
+
 @if(session('error'))
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
-
-@section('content')
     <div class="dashboard-container">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-2 stagger-1">
             <div class="d-flex align-items-center mb-3 mb-md-0">
@@ -142,7 +143,7 @@
                                         @else
                                             <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm syncing-indicator" style="font-size: 0.7rem; padding: 5px 8px;">
                                                 <span class="spinner-grow spinner-grow-sm me-1 text-danger" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
-                                                Menyinkronkan...
+                                                Proccessing...
                                             </span>
                                         @endif
                                     </td>
@@ -164,9 +165,12 @@
                                                     <i class="bi bi-eye-fill me-2"></i> Lihat
                                                 </a>
                                             @else
-                                                <button class="btn btn-sm btn-icon btn-light text-secondary shadow-sm" data-bs-toggle="tooltip" title="Sedang diproses..." disabled>
-                                                    <i class="bi bi-hourglass-split"></i>
-                                                </button>
+                                                <form action="{{ route('docs.retrySync', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Sinkronisasi ulang file ini ke Google Drive?')">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-icon btn-light text-warning shadow-sm hover-elevate" data-bs-toggle="tooltip" title="Pancing Ulang Sinkronisasi">
+                                                        <i class="bi bi-arrow-clockwise fs-6"></i>
+                                                    </button>
+                                                </form>
                                             @endif
 
                                             @if ($doc->owner_id == auth()->id())
@@ -177,7 +181,7 @@
                                             
                                             @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
                                                 <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
-                                                    <i class="bi bi-gear"></i>
+                                                    <i class="bi bi-pencil-square" ></i>
                                                 </a>
                                                 <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
                                                     @csrf @method('DELETE')

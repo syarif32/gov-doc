@@ -117,7 +117,8 @@ class DocumentController extends Controller
                 'extension' => $extension,
                 'file_size' => $file->getSize(),
                 'owner_id' => auth()->id(),
-                'file_path' => 'Processing...', // Tanda bahwa sedang antre
+                'file_path' => $tempPath,
+                'status' => 'processing', 
             ];
             
             $doc = Document::create($docData);
@@ -365,6 +366,37 @@ class DocumentController extends Controller
         auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
 
         return back()->with('success', __('Akses dokumen berhasil dicabut.'));
+    }
+
+    // FUNGSI BARU: PANCING ULANG SINKRONISASI
+    public function retrySync($id)
+    {
+        $doc = \App\Models\Document::findOrFail($id);
+
+        // 1. Jika sudah ada ID Google, berarti sudah aman
+        if ($doc->google_file_id) {
+            return back()->with('success', 'Dokumen ini sudah tersinkronisasi dengan aman di Cloud.');
+        }
+
+        $tempPath = $doc->file_path;
+
+        // 2. Jika path hilang (karena sistem lama) atau file fisik sudah lenyap di server
+        if ($tempPath == 'Processing...' || !\Illuminate\Support\Facades\Storage::exists($tempPath)) {
+             $doc->update(['status' => 'failed', 'file_path' => 'Gagal: File lokal hilang']);
+             return back()->with('error', 'File fisik di server lokal sudah hilang. Silakan hapus data ini dan unggah ulang dokumen.');
+        }
+
+        // 3. Panggil ulang Kurirnya (Job)!
+        $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+        $isConvertible = in_array(strtolower($doc->extension), $googleTypes);
+        $targetFolderId = $doc->folder->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
+
+        // Kembalikan status ke processing
+        $doc->update(['status' => 'processing']); 
+
+        \App\Jobs\UploadToGoogleDrive::dispatch($doc->id, $tempPath, $targetFolderId, $isConvertible);
+
+        return back()->with('success', 'Sistem sedang memancing ulang sinkronisasi ke Google Drive...');
     }
     
 }

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="icon"href="https://diskominfo.batubarakab.go.id/static/media/logo-dark.3fbface3b5b71e3b893b.png" type="image/x-icon">
     <title>Diskominfo - Management System</title>
 
     <!-- Local Assets Links -->
