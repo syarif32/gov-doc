@@ -287,4 +287,23 @@ $extension = method_exists($file, 'getClientOriginalExtension')
             throw new \Exception("Gagal upload file ke Google Drive: " . $e->getMessage());
         }
     }
+    /**
+     * Fungsi untuk menyuntikkan email pegawai ke dalam akses file Google Drive
+     */
+    public function grantAccess($googleFileId, $emailAddress, $role = 'reader')
+    {
+        $accessToken = $this->getAccessToken();
+        $response = \Illuminate\Support\Facades\Http::withToken($accessToken)
+            ->post("https://www.googleapis.com/drive/v3/files/{$googleFileId}/permissions", [
+                'type' => 'user',      
+                'role' => $role,       
+                'emailAddress' => $emailAddress, 
+            ]);
+
+        if ($response->failed()) {
+            \Illuminate\Support\Facades\Log::error("Gagal share file di Google Drive: " . $response->body());
+        }
+
+        return $response->successful();
+    }
 }

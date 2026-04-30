@@ -38,15 +38,73 @@
                     <div class="col-md-2">
                         <input type="date" name="tanggal" class="form-control border-0 bg-light" value="{{ request('tanggal') }}" title="{{ __('Pilih Tanggal Upload') }}">
                     </div>
-                    <div class="col-md-3">
-                        <select name="folder_id" class="form-select border-0 bg-light">
-                            <option value="">{{ __('Semua Kategori/Folder') }}</option>
-                            @foreach($folders as $f)
-                                <option value="{{ $f->id }}" {{ request('folder_id') == $f->id ? 'selected' : '' }}>
-                                    [{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                    <div class="col-md-3 position-relative">
+                        <!-- Hidden input untuk menampung ID folder yang dipilih -->
+                        <input type="hidden" name="folder_id" id="filterFolderId" value="{{ request('folder_id') }}">
+                        
+                        <!-- Tombol Dropdown Pengganti Select -->
+                        <button class="form-select border-0 bg-light text-start d-flex justify-content-between align-items-center" type="button" id="filterFolderBtn" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 8px;">
+                            <span id="filterFolderText" class="text-truncate" style="max-width: 90%;">
+                                @php
+                                    // Logika untuk menampilkan nama folder yang sedang terpilih dari URL
+                                    $selectedName = __('Semua Kategori/Folder');
+                                    if(request('folder_id')) {
+                                        $selectedFolder = $folders->firstWhere('id', request('folder_id'));
+                                        if($selectedFolder) {
+                                            $selectedName = '[' . ($selectedFolder->department->name ?? 'Umum') . '] ' . $selectedFolder->name;
+                                        }
+                                    }
+                                @endphp
+                                {{ $selectedName }}
+                            </span>
+                        </button>
+                        
+                        <!-- Isi Dropdown dengan Live Search & Visual Akar -->
+                        <div class="dropdown-menu w-100 p-2 shadow-lg border-0 rounded-4" aria-labelledby="filterFolderBtn" style="max-height: 350px; overflow-y: auto; z-index: 1050;">
+                            
+                            <!-- Input Search (Menempel di atas saat di-scroll) -->
+                            <div class="position-sticky top-0 bg-white pb-2" style="z-index: 10;">
+                                <div class="position-relative">
+                                    <span class="position-absolute" style="left: 10px; top: 50%; transform: translateY(-50%);"><i class="bi bi-search" style="font-size: 0.8rem; color: #6c757d;"></i></span>
+                                    <input type="text" class="form-control form-control-sm bg-light border-0" id="filterFolderSearch" placeholder="Cari folder atau divisi..." style="padding-left: 30px; border-radius: 8px;" autocomplete="off">
+                                </div>
+                            </div>
+                            
+                            <div id="filterFolderList">
+                                <!-- Opsi Default: Semua Folder -->
+                                <a class="dropdown-item rounded-3 py-2 filter-folder-opt {{ request('folder_id') == '' ? 'bg-primary bg-opacity-10 text-primary fw-bold' : 'text-dark' }} d-flex align-items-center" href="#" data-id="" data-text="{{ __('Semua Kategori/Folder') }}">
+                                    <i class="bi bi-grid-fill me-2 opacity-50"></i> {{ __('Semua Kategori/Folder') }}
+                                </a>
+                                <hr class="dropdown-divider my-1">
+                                
+                                <!-- Looping Data Folder dengan Visual Akar (Tree) -->
+                                @foreach($folders as $f)
+                                    @php
+                                        // Deteksi apakah ini anak folder (Sub-folder) atau Folder Induk
+                                        $isSubFolder = isset($f->parent_id) && $f->parent_id != null;
+                                        $paddingLeft = $isSubFolder ? 'ms-3' : ''; // Jika sub-folder, dorong ke kanan
+                                        $icon = $isSubFolder ? 'bi-arrow-return-right text-muted' : 'bi-folder-fill text-warning';
+                                        
+                                        $fullText = '[' . ($f->department->name ?? 'Umum') . '] ' . $f->name;
+                                        $isSelected = request('folder_id') == $f->id;
+                                    @endphp
+                                    
+                                    <a class="dropdown-item rounded-3 py-2 filter-folder-opt {{ $paddingLeft }} {{ $isSelected ? 'bg-primary bg-opacity-10 text-primary fw-bold' : 'text-dark' }} d-flex align-items-center" href="#" data-id="{{ $f->id }}" data-text="{{ $fullText }}">
+                                        <i class="{{ $icon }} fs-5 me-2 flex-shrink-0"></i>
+                                        <div class="overflow-hidden">
+                                            <div class="text-truncate small fw-medium">{{ $f->name }}</div>
+                                            <div class="text-uppercase" style="font-size: 0.6rem; opacity: 0.6;">{{ $f->department->name ?? 'Umum' }}</div>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
+                            
+                            <!-- Pesan Jika Data Tidak Ditemukan -->
+                            <div id="filterNoFolderFound" class="text-center text-muted py-3 d-none small">
+                                <i class="bi bi-folder-x fs-4 d-block mb-1 opacity-50"></i>
+                                Folder tidak ditemukan
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search me-1"></i> {{ __('Filter') }}</button>
@@ -238,14 +296,44 @@
 
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Target Folder') }}</label>
-                        <div class="input-group-custom">
-                            <span class="input-icon"><i class="bi bi-folder-symlink"></i></span>
-                            <select name="folder_id" class="form-select md-input" required>
-                                <option value="" disabled selected>{{ __('Pilih Folder Tujuan...') }}</option>
-                                @foreach($folders as $f)
-                                    <option value="{{ $f->id }}">[{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}</option>
-                                @endforeach
-                            </select>
+                        <div class="input-group-custom position-relative">
+                            <span class="input-icon" style="z-index: 1040;"><i class="bi bi-folder-symlink"></i></span>
+                            
+                            <!-- Hidden input untuk menyimpan ID folder yang akan dikirim ke Laravel -->
+                            <input type="hidden" name="folder_id" id="selectedFolderId" required>
+                            
+                            <!-- Tombol Dropdown Pengganti Select -->
+                            <button class="form-select md-input text-start d-flex justify-content-between align-items-center bg-white" type="button" id="folderDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="padding-right: 15px;">
+                                <span id="folderDropdownText" class="text-muted text-truncate" style="max-width: 90%;">{{ __('Cari & Pilih Folder Tujuan...') }}</span>
+                            </button>
+                            
+                            <!-- Isi Dropdown (Bisa di-scroll & ada Search) -->
+                            <div class="dropdown-menu w-100 p-2 shadow-lg border-0 rounded-4" aria-labelledby="folderDropdownBtn" style="max-height: 300px; overflow-y: auto;">
+                                
+                                <!-- Kolom Pencarian -->
+                                <div class="position-sticky top-0 bg-white pb-2" style="z-index: 10;">
+                                    <div class="input-group-custom">
+                                        <span class="input-icon" style="left: 10px;"><i class="bi bi-search" style="font-size: 0.8rem;"></i></span>
+                                        <input type="text" class="form-control form-control-sm bg-light border-0" id="folderSearchInput" placeholder="Ketik nama folder atau bidang..." style="padding-left: 30px; border-radius: 8px;" autocomplete="off">
+                                    </div>
+                                </div>
+                                
+                                <!-- Daftar Folder -->
+                                <div id="folderOptionsList">
+                                    @foreach($folders as $f)
+                                        <a class="dropdown-item rounded-3 py-2 folder-option d-flex align-items-center" href="#" data-id="{{ $f->id }}">
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle me-2 flex-shrink-0" style="font-size: 0.65rem;">[{{ $f->department->name ?? 'Umum' }}]</span>
+                                            <span class="folder-name text-truncate text-dark small fw-medium">{{ $f->name }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                                
+                                <!-- Pesan jika tidak ditemukan -->
+                                <div id="noFolderFound" class="text-center text-muted py-3 d-none small">
+                                    <i class="bi bi-folder-x fs-4 d-block mb-1 opacity-50"></i>
+                                    Folder tidak ditemukan
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -547,6 +635,122 @@
                     });
                 }, 5000); 
             }
+        }
+        // LOGIKA CUSTOM SEARCHABLE DROPDOWN
+        const folderDropdownBtn = document.getElementById('folderDropdownBtn');
+        const folderSearchInput = document.getElementById('folderSearchInput');
+        const folderOptions = document.querySelectorAll('.folder-option');
+        const noFolderFound = document.getElementById('noFolderFound');
+        const selectedFolderId = document.getElementById('selectedFolderId');
+        const folderDropdownText = document.getElementById('folderDropdownText');
+
+        // Fokus otomatis ke input search saat dropdown terbuka
+        folderDropdownBtn.addEventListener('shown.bs.dropdown', function () {
+            folderSearchInput.focus();
+        });
+
+        // Fitur Live Search (Menyaring daftar folder secara instan)
+        folderSearchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            let visibleCount = 0;
+
+            folderOptions.forEach(option => {
+                const text = option.innerText.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    option.style.setProperty('display', 'flex', 'important');
+                    visibleCount++;
+                } else {
+                    option.style.setProperty('display', 'none', 'important');
+                }
+            });
+
+            // Tampilkan ikon "Tidak Ditemukan" jika kosong
+            if (visibleCount === 0) {
+                noFolderFound.classList.remove('d-none');
+            } else {
+                noFolderFound.classList.add('d-none');
+            }
+        });
+
+        // Saat salah satu folder diklik
+        folderOptions.forEach(option => {
+            option.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Ambil ID dan Teks
+                const folderId = this.getAttribute('data-id');
+                const folderText = this.innerText;
+
+                // Masukkan ke Hidden Input untuk dikirim ke Laravel
+                selectedFolderId.value = folderId;
+                
+                // Ubah teks tombol dropdown
+                folderDropdownText.innerText = folderText;
+                folderDropdownText.classList.remove('text-muted');
+                folderDropdownText.classList.add('text-dark', 'fw-bold');
+
+                // Reset pencarian untuk penggunaan berikutnya
+                folderSearchInput.value = '';
+                folderSearchInput.dispatchEvent(new Event('input')); 
+            });
+        });
+
+
+
+
+        // LOGIKA DROPDOWN FILTER PENCARIAN (AKAR/TREE)
+        const filterFolderBtn = document.getElementById('filterFolderBtn');
+        const filterFolderSearch = document.getElementById('filterFolderSearch');
+        const filterFolderOpts = document.querySelectorAll('.filter-folder-opt');
+        const filterNoFolderFound = document.getElementById('filterNoFolderFound');
+        const filterFolderId = document.getElementById('filterFolderId');
+        const filterFolderText = document.getElementById('filterFolderText');
+
+        if(filterFolderBtn) {
+            // Otomatis fokus ke kotak pencarian saat dropdown diklik
+            filterFolderBtn.addEventListener('shown.bs.dropdown', () => filterFolderSearch.focus());
+
+            // Fitur Live Search
+            filterFolderSearch.addEventListener('input', function() {
+                const term = this.value.toLowerCase();
+                let visible = 0;
+                
+                filterFolderOpts.forEach(opt => {
+                    const text = opt.innerText.toLowerCase();
+                    if(text.includes(term)) {
+                        opt.style.setProperty('display', 'flex', 'important');
+                        visible++;
+                    } else {
+                        opt.style.setProperty('display', 'none', 'important');
+                    }
+                });
+                
+                if(visible === 0) {
+                    filterNoFolderFound.classList.remove('d-none');
+                } else {
+                    filterNoFolderFound.classList.add('d-none');
+                }
+            });
+
+            // Saat salah satu opsi diklik
+            filterFolderOpts.forEach(opt => {
+                opt.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const id = this.getAttribute('data-id');
+                    const text = this.getAttribute('data-text');
+
+                    // Isi hidden input dan ubah teks tombol
+                    filterFolderId.value = id;
+                    filterFolderText.innerText = text;
+
+                    // Bersihkan warna pilihan lama, beri warna pada yang baru diklik
+                    filterFolderOpts.forEach(o => o.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'fw-bold'));
+                    this.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'fw-bold');
+                    
+                    // (Opsional) Jika kamu ingin form otomatis ter-submit tanpa harus klik tombol hitam "Filter":
+                    // filterFolderBtn.closest('form').submit();
+                });
+            });
         }
     </script>
 

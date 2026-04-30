@@ -39,10 +39,10 @@
             <a href="{{ route('docs.trash') }}" class="nav-link side-link {{ request()->routeIs('docs.trash') ? 'active' : '' }}">
                 <i class="bi bi-trash3"></i> <span>{{ __('Trash') }}</span>
             </a>
-            <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'active' : '' }}">
+            <!-- <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-dots"></i> <span>{{ __('Messaging') }}</span>
                 <span class="badge bg-primary ms-auto rounded-pill px-2 py-1" style="font-size: 0.65rem;">New</span>
-            </a>
+            </a> -->
 
             @if (auth()->user()->role_level === 'admin')
                 <div class="nav-category mt-4">
