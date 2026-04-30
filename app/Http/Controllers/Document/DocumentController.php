@@ -188,26 +188,14 @@ class DocumentController extends Controller
             'folder_id' => 'required|exists:folders,id',
         ]);
 
-        // 1. Logika Pindah Folder (Move)
         if ($document->folder_id != $request->folder_id && $document->google_file_id) {
-            // Ambil data folder tujuan yang baru
             $newFolderDb = \App\Models\Folder::find($request->folder_id);
-
-            // Ambil ID Google Folder-nya (jika kosong, lempar ke folder utama di .env)
             $targetGoogleFolderId = $newFolderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
-
-            // Suruh robot memindahkan file ke folder tujuan yang SUDAH ADA
             $googleDriveService->moveFile($document->google_file_id, $targetGoogleFolderId);
         }
-
-        // 2. BONUS: Logika Ganti Nama (Rename)
         if ($document->title !== $request->title && $document->google_file_id) {
-            // Karena fungsi renameItem di service kita itu universal, 
-            // kita bisa memakainya untuk me-rename file juga!
             $googleDriveService->renameItem($document->google_file_id, $request->title);
         }
-
-        // 3. Simpan perubahan ke Database
         $document->update([
             'title' => $request->title,
             'description' => $request->description,
@@ -327,48 +315,49 @@ class DocumentController extends Controller
     }
 
 
-    public function share(Request $request, Document $document)
+   public function share(\Illuminate\Http\Request $request, $id, \App\Services\GoogleDriveService $googleDriveService)
     {
-        if ($document->owner_id !== auth()->id()) {
-            abort(403);
-        }
+        $doc = \App\Models\Document::findOrFail($id);
 
-        $request->validate([
-            'share_type' => 'required|in:user,department',
-            'user_id' => 'required_if:share_type,user|exists:users,id',
-            'department_id' => 'required_if:share_type,department|exists:departments,id',
-            'access_level' => 'required|in:read,write'
+        // 1. Simpan hak akses ke database lokal Laravel (Tabel Permissions)
+        $doc->permissions()->create([
+            'user_id' => $request->user_id,
+            'department_id' => $request->department_id,
+            'access_level' => $request->access_level, 
         ]);
 
-        DocumentPermission::updateOrCreate(
-            [
-                'document_id' => $document->id,
-                'user_id' => $request->share_type === 'user' ? $request->user_id : null,
-                'department_id' => $request->share_type === 'department' ? $request->department_id : null,
-            ],
-            ['access_level' => $request->access_level]
-        );
+        if ($doc->google_file_id && $request->share_type == 'user') {
+            
+            $user = \App\Models\User::find($request->user_id);
+            
+            if ($user && $user->email) {
+                // Ubah istilah Laravel ('read'/'write') menjadi istilah Google ('reader'/'writer')
+                $googleRole = $request->access_level == 'write' ? 'writer' : 'reader';
+                $googleDriveService->grantAccess($doc->google_file_id, $user->email, $googleRole);
+            }
+        }
 
-        return back()->with('success', __('Berhasil membagikan dokumen ke grup/user'));
+        return back()->with('success', 'Akses berhasil diberikan. Laravel telah mengunci data di database dan menyinkronkan izinnya dengan Google Drive!');
     }
     /**
      * Mencabut akses (Unshare) dari user atau departemen tertentu.
      */
-    public function unshare(\App\Models\DocumentPermission $permission)
+   
+    public function unshare(\App\Models\DocumentPermission $permission, \App\Services\GoogleDriveService $googleDriveService)
     {
-        // Cek keamanan: Pastikan hanya pemilik asli dokumen atau admin yang bisa mencabut akses
         if ($permission->document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
             abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
         }
-
+        if ($permission->document->google_file_id && $permission->user && $permission->user->email) {
+            $googleDriveService->removeAccess($permission->document->google_file_id, $permission->user->email);
+        }
         $permission->delete();
 
         auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
 
-        return back()->with('success', __('Akses dokumen berhasil dicabut.'));
+        return back()->with('success', __('Akses dokumen berhasil dicabut dari sistem dan dari Google Drive!'));
     }
 
-    // FUNGSI BARU: PANCING ULANG SINKRONISASI
     public function retrySync($id)
     {
         $doc = \App\Models\Document::findOrFail($id);

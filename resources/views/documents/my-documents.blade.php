@@ -162,6 +162,18 @@
                                             <div class="overflow-hidden">
                                                 <div class="fw-semibold text-dark text-truncate" title="{{ $doc->title }}">{{ $doc->title }}</div>
                                                 <div class="d-flex align-items-center mt-1">
+                                                    @if($doc->permissions->count() == 0)
+        <!-- Jika belum di-share ke siapa pun -->
+        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Hanya Anda yang bisa melihat ini">
+            <i class="bi bi-lock-fill me-1"></i> Privat
+        </span>
+    @else
+        <!-- Jika sudah di-share -->
+        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dibagikan ke {{ $doc->permissions->count() }} entitas">
+            <i class="bi bi-people-fill me-1"></i> Dibagikan ({{ $doc->permissions->count() }})
+        </span>
+    @endif
+</div>
                                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 text-uppercase" style="font-size: 0.65rem;">{{ $ext }}</span>
                                                     @if($doc->file_size == 0)
                                                         <span class="ms-1 badge bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-0" style="font-size: 0.65rem;">Baru Dibuat</span>

@@ -160,15 +160,33 @@
                                                 <i class="{{ $icon }} fs-4"></i>
                                             </div>
                                             <div class="overflow-hidden">
-                                                <div class="fw-semibold text-dark text-truncate" title="{{ $doc->title }}">{{ $doc->title }}</div>
+                                                <div class="fw-semibold text-dark text-truncate" title="{{ $doc->title }}">{{ $doc->title }}
+                                                    
+                                                </div>
+                                                
                                                 <div class="d-flex align-items-center mt-1">
                                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 text-uppercase" style="font-size: 0.65rem;">{{ $ext }}</span>
                                                     @if($doc->file_size == 0)
                                                         <span class="ms-1 badge bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-0" style="font-size: 0.65rem;">Baru Dibuat</span>
                                                     @endif
                                                 </div>
+                                                <div class="mt-1">
+    @if($doc->permissions->count() == 0)
+        <!-- Jika belum di-share ke siapa pun -->
+        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Hanya Anda yang bisa melihat ini">
+            <i class="bi bi-lock-fill me-1"></i> Privat
+        </span>
+    @else
+        <!-- Jika sudah di-share -->
+        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dibagikan ke {{ $doc->permissions->count() }} entitas">
+            <i class="bi bi-people-fill me-1"></i> Dibagikan ({{ $doc->permissions->count() }})
+        </span>
+    @endif
+</div>
                                             </div>
+                                            
                                         </div>
+                                        
                                     </td>
                                     <td class="py-3">
                                         <span class="badge bg-light text-dark border fw-normal">
@@ -210,14 +228,28 @@
                                         <div class="d-flex justify-content-end gap-1">
                                             
                                             @php
-                                                $editableExts = ['doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'];
-                                                $isEditable = in_array(strtolower($doc->extension), $editableExts);
-                                            @endphp
+    $editableExts = ['doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'];
+    $isEditable = in_array(strtolower($doc->extension), $editableExts);
+    
+    // Cek apakah user ini adalah Pemilik Dokumen
+    $isOwner = $doc->owner_id == auth()->id();
+    
+    // Cek apakah user ini punya hak 'write' (Editor) dari tabel permissions
+    $hasWriteAccess = $doc->permissions->where('user_id', auth()->id())->where('access_level', 'write')->isNotEmpty();
+@endphp
 
-                                            @if($doc->google_file_id && $isEditable)
-                                                <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-primary text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
-                                                    <i class="bi bi-pencil-square me-2"></i> Live Edit
-                                                </a>
+@if($doc->google_file_id && $isEditable)
+    @if($isOwner || $hasWriteAccess)
+        <!-- Jika dia Pemilik atau Editor, tampilkan tombol Live Edit Biru -->
+        <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-primary text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
+            <i class="bi bi-pencil-square me-2"></i> Live Edit
+        </a>
+    @else
+        <!-- Jika dia cuma Viewer, tampilkan tombol Lihat Saja -->
+        <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-success text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Hanya Lihat (View Only)">
+            <i class="bi bi-eye-fill me-2"></i> View Only
+        </a>
+    @endif
                                             @elseif($doc->google_file_id && !$isEditable)
                                                 <a href="https://drive.google.com/file/d/{{ $doc->google_file_id }}/view" target="_blank" class="btn btn-sm btn-info text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Lihat File">
                                                     <i class="bi bi-eye-fill me-2"></i> Lihat

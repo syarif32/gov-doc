@@ -97,8 +97,8 @@ $extension = method_exists($file, 'getClientOriginalExtension')
 
             $fileId = $uploadedFile->id;
 
-            $permission = new Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'writer']);
-            $this->service->permissions->create($fileId, $permission);
+            // $permission = new Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'writer']);
+            // $this->service->permissions->create($fileId, $permission);
 
             return $fileId;
 
@@ -126,8 +126,8 @@ $extension = method_exists($file, 'getClientOriginalExtension')
             $uploadedFile = $this->service->files->create($fileMetadata, ['fields' => 'id']);
             $fileId = $uploadedFile->id;
 
-            $permission = new Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'writer']);
-            $this->service->permissions->create($fileId, $permission);
+            // $permission = new Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'writer']);
+            // $this->service->permissions->create($fileId, $permission);
 
             return $fileId;
         } catch (Exception $e) {
@@ -230,8 +230,8 @@ $extension = method_exists($file, 'getClientOriginalExtension')
             ]);
 
             $folder = $this->service->files->create($fileMetadata, ['fields' => 'id']);
-            $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
-            $this->service->permissions->create($folder->id, $permission);
+            // $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
+            // $this->service->permissions->create($folder->id, $permission);
 
             return $folder->id;
         } catch (\Exception $e) {
@@ -271,39 +271,82 @@ $extension = method_exists($file, 'getClientOriginalExtension')
 
             $uploadedFile = $this->service->files->create($fileMetadata, [
                 'data' => $content,
-                'mimeType' => $file->getMimeType(), // Biarkan sesuai aslinya (PDF tetap PDF, ZIP tetap ZIP)
+                'mimeType' => $file->getMimeType(), 
                 'uploadType' => 'multipart',
                 'fields' => 'id',
             ]);
 
             $fileId = $uploadedFile->id;
-
-            // Buka akses agar bisa didownload via link
-            $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
-            $this->service->permissions->create($fileId, $permission);
+            // $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
+            // $this->service->permissions->create($fileId, $permission);
 
             return $fileId;
         } catch (\Exception $e) {
             throw new \Exception("Gagal upload file ke Google Drive: " . $e->getMessage());
         }
     }
+    
+    public function getAccessToken()
+    {
+        $response = \Illuminate\Support\Facades\Http::post('https://oauth2.googleapis.com/token', [
+            'client_id' => env('GOOGLE_CLIENT_ID'),
+            'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+            'refresh_token' => env('GOOGLE_REFRESH_TOKEN'),
+            'grant_type' => 'refresh_token',
+        ]);
+
+        if ($response->successful()) {
+            return $response->json('access_token');
+        }
+
+        \Illuminate\Support\Facades\Log::error('Gagal mengambil Access Token baru: ' . $response->body());
+        return null;
+    }
+
     /**
-     * Fungsi untuk menyuntikkan email pegawai ke dalam akses file Google Drive
+     * 2. Fungsi untuk menyuntikkan email pegawai ke dalam akses file Google Drive
      */
     public function grantAccess($googleFileId, $emailAddress, $role = 'reader')
     {
+        // SAKTI: Sapu bersih dulu izin lamanya di Drive agar tidak "nyangkut" atau bentrok!
+        $this->removeAccess($googleFileId, $emailAddress);
+
         $accessToken = $this->getAccessToken();
+        if (!$accessToken) return false;
+
+        // Baru tembak API Google Drive untuk memberikan izin baru yang presisi
         $response = \Illuminate\Support\Facades\Http::withToken($accessToken)
-            ->post("https://www.googleapis.com/drive/v3/files/{$googleFileId}/permissions", [
-                'type' => 'user',      
-                'role' => $role,       
+            ->post("https://www.googleapis.com/drive/v3/files/{$googleFileId}/permissions?sendNotificationEmail=false", [
+                'type' => 'user',
+                'role' => $role,
                 'emailAddress' => $emailAddress, 
             ]);
 
-        if ($response->failed()) {
-            \Illuminate\Support\Facades\Log::error("Gagal share file di Google Drive: " . $response->body());
-        }
-
         return $response->successful();
+    }
+    /**
+     * 3. Fungsi untuk MENCABUT PAKSA akses email dari Google Drive
+     */
+    public function removeAccess($googleFileId, $emailAddress)
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) return false;
+
+        // Cari tahu dulu apa "ID Izin" untuk email tersebut di mata Google
+        $response = \Illuminate\Support\Facades\Http::withToken($accessToken)
+            ->get("https://www.googleapis.com/drive/v3/files/{$googleFileId}/permissions?fields=permissions(id,emailAddress)");
+
+        if ($response->successful()) {
+            $permissions = $response->json('permissions') ?? [];
+            
+            foreach ($permissions as $perm) {
+                // Jika ketemu email yang pas, LANGSUNG HAPUS dari Drive!
+                if (isset($perm['emailAddress']) && strtolower($perm['emailAddress']) === strtolower($emailAddress)) {
+                    \Illuminate\Support\Facades\Http::withToken($accessToken)
+                        ->delete("https://www.googleapis.com/drive/v3/files/{$googleFileId}/permissions/{$perm['id']}");
+                }
+            }
+        }
+        return true;
     }
 }
