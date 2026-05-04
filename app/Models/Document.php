@@ -16,7 +16,9 @@ class Document extends Model
         'extension',
         'google_file_id',
         'file_size',
-        'version'
+        'version',
+        'status',      
+        'is_public'
     ];
     public function getGoogleEditorUrlAttribute()
     {

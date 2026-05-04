@@ -349,4 +349,63 @@ $extension = method_exists($file, 'getClientOriginalExtension')
         }
         return true;
     }
+    public function makePublic($fileId)
+    {
+        try {
+            $permission = new \Google_Service_Drive_Permission(['type' => 'anyone', 'role' => 'reader']);
+            $this->service->permissions->create($fileId, $permission);
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Gagal membuat file menjadi publik: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Memberikan akses publik (anyone with the link) pada Google Drive
+     */
+    public function grantPublicAccess($fileId, $role = 'reader')
+    {
+        try {
+            // SAKTI: Hapus dulu izin publik lama (jika ada) biar gak bentrok
+            $this->removePublicAccess($fileId);
+
+            // Buat izin Publik baru dengan hak akses yang dinamis
+            $permission = new \Google_Service_Drive_Permission([
+                'type' => 'anyone',
+                'role' => $role, // Sekarang BISA menerima 'writer'
+            ]);
+            
+            $this->service->permissions->create($fileId, $permission);
+            return true;
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Gagal membuat dokumen menjadi publik di GDrive: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mencabut akses publik (anyone) dari Google Drive
+     */
+    public function removePublicAccess($fileId)
+    {
+        try {
+            // Ambil SEMUA daftar perizinan di file ini
+            $permissionsList = $this->service->permissions->listPermissions($fileId, ['fields' => 'permissions(id, type)']);
+            $permissions = $permissionsList->getPermissions();
+            
+            // Lacak izin yang ber-type 'anyone' dan eksekusi mati!
+            if ($permissions) {
+                foreach ($permissions as $permission) {
+                    if ($permission->getType() === 'anyone') {
+                        $this->service->permissions->delete($fileId, $permission->getId());
+                    }
+                }
+            }
+            return true;
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Gagal mencabut akses publik di GDrive: " . $e->getMessage());
+            return false;
+        }
+    }
 }

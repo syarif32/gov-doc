@@ -11,6 +11,8 @@ use App\Models\DocumentPermission;
 use Illuminate\Http\Request;
  use App\Jobs\UploadToGoogleDrive;
 use Illuminate\Support\Facades\Storage;
+use Pion\Laravel\ChunkUpload\Receiver\FileReceiver;
+use Pion\Laravel\ChunkUpload\Handler\HandlerFactory;
 
 class DocumentController extends Controller
 {
@@ -18,14 +20,9 @@ class DocumentController extends Controller
     {
         $user = auth()->user();
         $query = Document::query();
-
-        // --- 1. FITUR PENCARIAN & SORTIR SUPER LENGKAP ---
-        // Cari berdasarkan nama dokumen
         if ($request->filled('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
         }
-
-        // Sortir berdasarkan Tanggal Spesifik
         if ($request->filled('tanggal')) {
             $query->whereDate('created_at', $request->tanggal);
         }
@@ -175,6 +172,51 @@ class DocumentController extends Controller
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
+
+    // CHUNKED UPLOAD 
+    public function uploadChunk(\Illuminate\Http\Request $request)
+    {
+        $receiver = new \Pion\Laravel\ChunkUpload\Receiver\FileReceiver('file', $request, \Pion\Laravel\ChunkUpload\Handler\HandlerFactory::classFromRequest($request));
+
+        if ($receiver->isUploaded() === false) {
+            return response()->json(['error' => 'Tidak ada file yang diunggah'], 400);
+        }
+        $save = $receiver->receive();
+
+        if ($save->isFinished()) {
+            $file = $save->getFile();
+            $extension = strtolower($file->getClientOriginalExtension());
+            $fileName = $file->hashName(); 
+            $tempPath = $file->storeAs('temp_uploads', $fileName);
+            $folderDb = \App\Models\Folder::find($request->folder_id);
+            $targetFolderId = $folderDb->google_folder_id ?? env('GOOGLE_DRIVE_FOLDER_ID');
+
+            $doc = \App\Models\Document::create([
+                'title' => $request->title ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                'folder_id' => $request->folder_id,
+                'extension' => $extension,
+                'file_size' => $file->getSize(),
+                'owner_id' => auth()->id(),
+                'file_path' => $tempPath,
+                // 'status' => 'processing', 
+                'is_public' => $request->is_public == '1' ? true : false, 
+
+            ]);
+
+            $googleTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+            $isConvertible = in_array($extension, $googleTypes);
+            \App\Jobs\UploadToGoogleDrive::dispatch($doc->id, $tempPath, $targetFolderId, $isConvertible);
+            return response()->json([
+                'success' => true,
+                'message' => 'Upload selesai & Antrean Google Drive dimulai!'
+            ]);
+        }
+        $handler = $save->handler();
+        return response()->json([
+            'done' => $handler->getPercentageDone(),
+            'status' => true
+        ]);
+    }
     // --- FUNGSI: Edit Dokumen ---
     public function update(Request $request, Document $document, \App\Services\GoogleDriveService $googleDriveService)
     {
@@ -315,49 +357,107 @@ class DocumentController extends Controller
     }
 
 
-   public function share(\Illuminate\Http\Request $request, $id, \App\Services\GoogleDriveService $googleDriveService)
+ public function share(\Illuminate\Http\Request $request, $id, \App\Services\GoogleDriveService $googleDriveService)
     {
         $doc = \App\Models\Document::findOrFail($id);
 
-        // 1. Simpan hak akses ke database lokal Laravel (Tabel Permissions)
-        $doc->permissions()->create([
-            'user_id' => $request->user_id,
-            'department_id' => $request->department_id,
-            'access_level' => $request->access_level, 
-        ]);
+        // --- 1. JIKA MEMILIH SHARE PUBLIK ---
+        if ($request->share_type === 'public') {
+            $doc->update(['is_public' => true]);
+            $googleRole = $request->access_level === 'write' ? 'writer' : 'reader';
+            
+            if ($doc->google_file_id) {
+                $googleDriveService->grantPublicAccess($doc->google_file_id, $googleRole); 
+            }
+            $statusText = $googleRole === 'writer' ? 'Editor' : 'Viewer';
+            return back()->with('success', "Dokumen sekarang bersifat Publik ($statusText) dan tersinkronisasi di Google Drive!");
+        }
 
-        if ($doc->google_file_id && $request->share_type == 'user') {
-            
-            $user = \App\Models\User::find($request->user_id);
-            
-            if ($user && $user->email) {
-                // Ubah istilah Laravel ('read'/'write') menjadi istilah Google ('reader'/'writer')
-                $googleRole = $request->access_level == 'write' ? 'writer' : 'reader';
-                $googleDriveService->grantAccess($doc->google_file_id, $user->email, $googleRole);
+        // --- 2. CABUT PUBLIK JIKA MENGUBAH JADI PRIVAT ---
+        if ($doc->is_public) {
+            $doc->update(['is_public' => false]);
+            if ($doc->google_file_id) {
+                $googleDriveService->removePublicAccess($doc->google_file_id);
             }
         }
 
-        return back()->with('success', 'Akses berhasil diberikan. Laravel telah mengunci data di database dan menyinkronkan izinnya dengan Google Drive!');
+        // --- 3. SIMPAN IZIN KE DATABASE LOKAL ---
+        $doc->permissions()->create([
+            'user_id' => $request->share_type === 'user' ? $request->user_id : null,
+            'department_id' => $request->share_type === 'department' ? $request->department_id : null,
+            'access_level' => $request->access_level, 
+        ]);
+
+        // --- 4. SINKRONISASI MASSAL KE GOOGLE DRIVE (TERMASUK DEPARTEMEN) ---
+        if ($doc->google_file_id) {
+            $googleRole = $request->access_level === 'write' ? 'writer' : 'reader';
+            
+            if ($request->share_type === 'user' && $request->user_id) {
+                $user = \App\Models\User::find($request->user_id);
+                if ($user && $user->email) {
+                    $googleDriveService->grantAccess($doc->google_file_id, $user->email, $googleRole);
+                }
+            } elseif ($request->share_type === 'department' && $request->department_id) {
+                // SAKTI: Ambil SEMUA pegawai di dalam departemen itu yang punya email!
+                $deptUsers = \App\Models\User::where('department_id', $request->department_id)->whereNotNull('email')->get();
+                foreach ($deptUsers as $dUser) {
+                    $googleDriveService->grantAccess($doc->google_file_id, $dUser->email, $googleRole);
+                }
+            }
+        }
+
+        return back()->with('success', 'Akses spesifik berhasil diberikan dan disinkronkan ke Google Drive!');
     }
-    /**
-     * Mencabut akses (Unshare) dari user atau departemen tertentu.
-     */
-   
+
     public function unshare(\App\Models\DocumentPermission $permission, \App\Services\GoogleDriveService $googleDriveService)
     {
         if ($permission->document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
             abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
         }
-        if ($permission->document->google_file_id && $permission->user && $permission->user->email) {
-            $googleDriveService->removeAccess($permission->document->google_file_id, $permission->user->email);
-        }
-        $permission->delete();
 
+        // --- SINKRONISASI PENCABUTAN MASSAL DARI GOOGLE DRIVE ---
+        if ($permission->document->google_file_id) {
+            if ($permission->user_id) {
+                $user = \App\Models\User::find($permission->user_id);
+                if ($user && $user->email) {
+                    $googleDriveService->removeAccess($permission->document->google_file_id, $user->email);
+                }
+            } elseif ($permission->department_id) {
+                // Cabut akses SEMUA orang di dalam departemen tersebut!
+                $deptUsers = \App\Models\User::where('department_id', $permission->department_id)->whereNotNull('email')->get();
+                foreach ($deptUsers as $dUser) {
+                    $googleDriveService->removeAccess($permission->document->google_file_id, $dUser->email);
+                }
+            }
+        }
+        
+        $permission->delete();
         auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
 
-        return back()->with('success', __('Akses dokumen berhasil dicabut dari sistem dan dari Google Drive!'));
+        return back()->with('success', __('Akses berhasil dicabut dari sistem dan dari Google Drive!'));
     }
 
+    public function unsharePublic($id, \App\Services\GoogleDriveService $googleDriveService)
+    {
+        $document = \App\Models\Document::findOrFail($id);
+
+        if ($document->owner_id !== auth()->id() && auth()->user()->role_level !== 'admin') {
+            abort(403, 'Anda tidak memiliki izin untuk mengubah dokumen ini.');
+        }
+
+        // Ubah di database lokal
+        $document->is_public = false;
+        $document->save();
+
+        // SAATNYA MENGHUBUNGI GOOGLE UNTUK MENCABUT KUNCINYA
+        if ($document->google_file_id) {
+            $googleDriveService->removePublicAccess($document->google_file_id);
+        }
+
+        return back()->with('success', 'Akses publik berhasil dicabut dari sistem dan Google Drive.');
+    }
+
+    
     public function retrySync($id)
     {
         $doc = \App\Models\Document::findOrFail($id);

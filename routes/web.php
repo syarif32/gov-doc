@@ -9,7 +9,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\FolderController;
-
+use App\Http\Controllers\Admin\Maintenance\MaintenanceController;
 // 1. Language Switcher (Publicly accessible)
 Route::get('lang/{locale}', function ($locale) {
     if (in_array($locale, ['tk', 'ru', 'en'])) {
@@ -41,6 +41,15 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
         Route::get('/logs', [\App\Http\Controllers\Admin\LogController::class, 'index'])->name('logs');
         Route::resource('folders', \App\Http\Controllers\Admin\FolderController::class);
     });
+    
+
+// RUTE MAINTENANCE SISTEM
+Route::middleware(['auth'])->prefix('admin/maintenance')->name('admin.maintenance.')->group(function () {
+    Route::get('/', [MaintenanceController::class, 'index'])->name('index');
+    Route::post('/cache/{type}', [MaintenanceController::class, 'clearCache'])->name('cache');
+    Route::post('/logs', [MaintenanceController::class, 'clearLogs'])->name('logs');
+    Route::post('/temp', [MaintenanceController::class, 'clearTempFiles'])->name('temp');
+});
 
     // Document Routes
     Route::prefix('documents')->name('docs.')->group(function () {
@@ -48,15 +57,14 @@ Route::middleware(['auth', 'setLanguage'])->group(function () {
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
         Route::get('/download/{document}', [DocumentController::class, 'download'])->name('download');
         Route::get('/my-documents', [DocumentController::class, 'myDocuments'])->name('myDocuments'); 
-        // Tambahkan baris ini di dalam group prefix('documents')
 Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('editor');
         Route::get('/edit/{document}', [DocumentController::class, 'edit'])->name('edit');
         Route::put('/update/{document}', [DocumentController::class, 'update'])->name('update');
         Route::delete('/delete/{document}', [DocumentController::class, 'destroy'])->name('destroy');
         Route::post('/upload', [DocumentController::class, 'store'])->name('store');
-        // TAMBAHKAN INI UNTUK BIKIN FILE BARU
+        Route::post('/chunk-upload', [\App\Http\Controllers\Document\DocumentController::class, 'uploadChunk'])->name('chunk');
         Route::post('/create-blank', [DocumentController::class, 'storeBlank'])->name('storeBlank');
-        // FITUR PANCING ULANG SINKRONISASI
+        // ULANG SINKRONISASI
         Route::post('/retry-sync/{id}', [\App\Http\Controllers\Document\DocumentController::class, 'retrySync'])->name('retrySync');
         Route::post('/share/{document}', [DocumentController::class, 'share'])->name('share');
         // Tambahkan di bawah route('docs.share') atau di grup route dokumen
@@ -64,6 +72,7 @@ Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('e
        Route::get('/trash', [DocumentController::class, 'trash'])->name('trash');
         Route::post('/{id}/restore', [DocumentController::class, 'restore'])->name('restore');
         Route::delete('/{id}/force-delete', [DocumentController::class, 'forceDelete'])->name('forceDelete');
+       Route::post('/{id}/unshare-public', [DocumentController::class, 'unsharePublic'])->name('unshare_public');
     });
 
   

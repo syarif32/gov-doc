@@ -63,6 +63,9 @@
                 <a href="{{ route('admin.logs') }}" class="nav-link side-link {{ request()->routeIs('admin.logs') ? 'active' : '' }}">
                     <i class="bi bi-shield-lock"></i> <span>{{ __('System Logs') }}</span>
                 </a>
+                <a href="{{ route('admin.maintenance.index') }}" class="nav-link side-link {{ request()->routeIs('admin.maintenance.*') ? 'active' : '' }}">
+                    <i class="bi bi-tools"></i> <span>{{ __('Maintenance') }}</span>
+                </a>
             @endif
         </nav>
     </div>

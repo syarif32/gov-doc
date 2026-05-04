@@ -1,6 +1,5 @@
 @extends('layouts.admin')
 
-
 @section('content')
 
 @if(session('error'))
@@ -171,13 +170,16 @@
                                                     @endif
                                                 </div>
                                                 <div class="mt-1">
-    @if($doc->permissions->count() == 0)
-        <!-- Jika belum di-share ke siapa pun -->
+    <div class="mt-1">
+    @if($doc->is_public)
+        <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dapat dilihat oleh semua orang">
+            <i class="bi bi-globe me-1"></i> Publik
+        </span>
+    @elseif($doc->permissions->count() == 0)
         <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Hanya Anda yang bisa melihat ini">
             <i class="bi bi-lock-fill me-1"></i> Privat
         </span>
     @else
-        <!-- Jika sudah di-share -->
         <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dibagikan ke {{ $doc->permissions->count() }} entitas">
             <i class="bi bi-people-fill me-1"></i> Dibagikan ({{ $doc->permissions->count() }})
         </span>
@@ -457,10 +459,34 @@
                         </div>
                         
                         <div class="modal-body px-4 py-4">
-                            @if($doc->permissions->count() > 0)
+                            <!-- List Akses Saat Ini -->
+                            @if($doc->permissions->count() > 0 || $doc->is_public)
                                 <div class="mb-4 p-3 bg-light rounded-3 border">
                                     <label class="form-label small fw-bold text-secondary mb-2 text-uppercase tracking-wide"><i class="bi bi-info-circle me-1"></i> {{ __('Currently Shared With') }}</label>
                                     <ul class="list-group list-group-flush mb-0">
+                                        
+                                        <!-- Menampilkan status Publik jika aktif -->
+                                        @if($doc->is_public)
+                                            <li class="list-group-item d-flex justify-content-between align-items-center bg-transparent px-2 py-2 border-bottom border-light">
+                                                <div>
+                                                    <i class="bi bi-globe text-success me-2"></i> <span class="fw-medium text-dark small">{{ __('Public (Everyone)') }}</span>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1" style="font-size: 0.65rem;">
+                                                        {{ __('Akses Terbuka') }}
+                                                    </span>
+                                                    <!-- Pastikan Anda memiliki route untuk unshare public -->
+                                                    <form action="{{ route('docs.unshare_public', $doc->id) }}" method="POST" class="m-0 p-0" onsubmit="return confirm('{{ __('Cabut akses publik dari dokumen ini?') }}')">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 m-0 border-0 text-decoration-none shadow-none" title="{{ __('Cabut Akses Publik') }}">
+                                                            <i class="bi bi-x-circle-fill fs-6"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </li>
+                                        @endif
+
+                                        <!-- Looping Permission Individual / Departemen -->
                                         @foreach($doc->permissions as $perm)
                                             @php
                                                 $shareName = '';
@@ -498,6 +524,7 @@
                                 <hr class="text-light mb-4">
                             @endif
 
+                            <!-- Form Tambah Akses -->
                             <form action="{{ route('docs.share', $doc->id) }}" method="POST">
                                 @csrf
                                 <div class="mb-4">
@@ -505,28 +532,55 @@
                                     <select name="share_type" class="form-select md-input" onchange="toggleShareUI(this.value, {{ $doc->id }})">
                                         <option value="user">{{ __('Individual User') }}</option>
                                         <option value="department">{{ __('Whole Department (Group)') }}</option>
+                                        <option value="public">{{ __('Public (Everyone)') }}</option>
                                     </select>
                                 </div>
 
                                 <div id="user_field_{{ $doc->id }}" class="mb-4">
                                     <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Select Colleague') }}</label>
-                                    <select name="user_id" class="form-select md-input">
-                                        @foreach ($users as $u)
-                                            <option value="{{ $u->id }}">{{ $u->full_name }}</option>
-                                        @endforeach
-                                    </select>
+                                    <div class="position-relative">
+                                        <input type="hidden" name="user_id" id="selectedUser_{{ $doc->id }}">
+                                        <button class="form-select md-input text-start d-flex justify-content-between align-items-center bg-white" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span id="userText_{{ $doc->id }}" class="text-muted text-truncate">{{ __('Cari & Pilih Pegawai...') }}</span>
+                                        </button>
+                                        <div class="dropdown-menu w-100 p-2 shadow-lg border-0 rounded-4" style="max-height: 250px; overflow-y: auto;">
+                                            <div class="position-sticky top-0 bg-white pb-2" style="z-index: 10;">
+                                                <input type="text" class="form-control form-control-sm bg-light border-0 search-user-input" data-target="userList_{{ $doc->id }}" placeholder="{{ __('Ketik nama pegawai...') }}" onclick="event.stopPropagation();">
+                                            </div>
+                                            <div id="userList_{{ $doc->id }}">
+                                                @foreach ($users as $u)
+                                                    <a class="dropdown-item rounded-3 py-2" href="#" onclick="event.preventDefault(); selectShareOption('user', {{ $doc->id }}, {{ $u->id }}, '{{ addslashes($u->full_name) }}')">
+                                                        <i class="bi bi-person me-2 opacity-50"></i>{{ $u->full_name }}
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div id="dept_field_{{ $doc->id }}" class="mb-4" style="display:none;">
                                     <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Select Department') }}</label>
-                                    <select name="department_id" class="form-select md-input">
-                                        @foreach ($departments as $d)
-                                            <option value="{{ $d->id }}">{{ $d->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    <div class="position-relative">
+                                        <input type="hidden" name="department_id" id="selectedDept_{{ $doc->id }}">
+                                        <button class="form-select md-input text-start d-flex justify-content-between align-items-center bg-white" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span id="deptText_{{ $doc->id }}" class="text-muted text-truncate">{{ __('Cari & Pilih Departemen...') }}</span>
+                                        </button>
+                                        <div class="dropdown-menu w-100 p-2 shadow-lg border-0 rounded-4" style="max-height: 250px; overflow-y: auto;">
+                                            <div class="position-sticky top-0 bg-white pb-2" style="z-index: 10;">
+                                                <input type="text" class="form-control form-control-sm bg-light border-0 search-dept-input" data-target="deptList_{{ $doc->id }}" placeholder="{{ __('Ketik nama departemen...') }}" onclick="event.stopPropagation();">
+                                            </div>
+                                            <div id="deptList_{{ $doc->id }}">
+                                                @foreach ($departments as $d)
+                                                    <a class="dropdown-item rounded-3 py-2" href="#" onclick="event.preventDefault(); selectShareOption('dept', {{ $doc->id }}, {{ $d->id }}, '{{ addslashes($d->name) }}')">
+                                                        <i class="bi bi-building me-2 opacity-50"></i>{{ $d->name }}
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="mb-2">
+                                <div class="mb-2" id="access_level_field_{{ $doc->id }}">
                                     <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Access Privilege') }}</label>
                                     <select name="access_level" class="form-select md-input">
                                         <option value="read">{{ __('Viewer') }}</option>
@@ -545,258 +599,6 @@
             </div>
         @endif
     @endforeach
+    @include('documents.script')
 
-    <div id="progressOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center" style="background-color: rgba(0, 0, 0, 0.6); z-index: 9999; backdrop-filter: blur(4px);">
-        <div class="p-4 bg-white rounded-4 shadow-lg border-0" style="width: 90%; max-width: 400px;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
-                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div> Mengunggah File...
-                </h6>
-                <span id="uploadProgressText" class="fw-bold text-primary small">0%</span>
-            </div>
-            <div class="progress" style="height: 12px; border-radius: 8px;">
-                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-            <p class="text-secondary small mt-3 mb-0 text-center" id="uploadStatusMessage">Mentransfer dari PC Anda ke Server Lokal...</p>
-        </div>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            initTooltips();
-            checkSyncStatus(); // Jalankan auto-refresh untuk badge kuning
-        });
-
-        function initTooltips() {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-        }
-
-        function toggleShareUI(val, id) {
-            if(val === 'user') {
-                document.getElementById('user_field_' + id).style.display = 'block';
-                document.getElementById('dept_field_' + id).style.display = 'none';
-            } else {
-                document.getElementById('user_field_' + id).style.display = 'none';
-                document.getElementById('dept_field_' + id).style.display = 'block';
-            }
-        }
-
-        // LOGIKA AJAX UNTUK PROGRESS BAR (%)
-        document.getElementById('uploadForm').addEventListener('submit', function (e) {
-            e.preventDefault(); // Cegah reload bawaan form
-
-            var form = this;
-            var formData = new FormData(form);
-            var xhr = new XMLHttpRequest();
-
-            // 1. Sembunyikan Modal Upload
-            var uploadModalEl = document.getElementById('uploadModal');
-            var uploadModal = bootstrap.Modal.getInstance(uploadModalEl);
-            if (uploadModal) uploadModal.hide();
-
-            // 2. Tampilkan UI Progress Bar
-            var progressContainer = document.getElementById('progressOverlay');
-            var progressBar = document.getElementById('uploadProgressBar');
-            var progressText = document.getElementById('uploadProgressText');
-            var statusMessage = document.getElementById('uploadStatusMessage');
-            
-            progressContainer.classList.remove('d-none');
-            progressContainer.classList.add('d-flex');
-
-            xhr.open('POST', form.action, true);
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-            // 3. Pantau Progress Transfer Data (Browser ke Lokal)
-            xhr.upload.addEventListener('progress', function (e) {
-                if (e.lengthComputable) {
-                    var percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progressBar.style.width = percentComplete + '%';
-                    progressBar.setAttribute('aria-valuenow', percentComplete);
-                    progressText.innerText = percentComplete + '%';
-                }
-            });
-
-            // 4. Setelah Transfer ke Lokal Selesai
-            xhr.onload = function () {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    progressBar.classList.remove('bg-primary');
-                    progressBar.classList.add('bg-success');
-                    statusMessage.innerHTML = "<span class='text-success fw-bold'><i class='bi bi-check-circle-fill'></i> Selesai! Memproses Antrean Drive...</span>";
-                    
-                    // Reload halaman setelah 1 detik untuk memunculkan tabel
-                    setTimeout(() => {
-                        window.location.reload(); 
-                    }, 1000);
-                } else {
-                    alert("Terjadi kesalahan sistem saat mengunggah. Coba lagi.");
-                    progressContainer.classList.remove('d-flex');
-                    progressContainer.classList.add('d-none');
-                }
-            };
-
-            xhr.onerror = function () {
-                alert("Koneksi terputus! Gagal mengunggah file.");
-                progressContainer.classList.remove('d-flex');
-                progressContainer.classList.add('d-none');
-            };
-
-            xhr.send(formData);
-        });
-
-        // FUNGSI AUTO-REFRESH SILENT UNTUK TABEL
-        function checkSyncStatus() {
-            let syncingBadges = document.querySelectorAll('.syncing-indicator');
-            if(syncingBadges.length > 0) {
-                // Jika masih ada dokumen berstatus Kuning, cek perubahannya 5 detik lagi
-                setTimeout(() => {
-                    fetch(window.location.href)
-                    .then(response => response.text())
-                    .then(html => {
-                        let parser = new DOMParser();
-                        let doc = parser.parseFromString(html, 'text/html');
-                        
-                        // Ambil hanya HTML tabel terbaru, lalu timpa tanpa reload halaman
-                        let newTableBody = doc.querySelector('.table-responsive').innerHTML;
-                        document.querySelector('.table-responsive').innerHTML = newTableBody;
-                        
-                        initTooltips(); 
-                        checkSyncStatus(); // Loop terus sampai semua warna Kuning hilang
-                    });
-                }, 5000); 
-            }
-        }
-        // LOGIKA CUSTOM SEARCHABLE DROPDOWN
-        const folderDropdownBtn = document.getElementById('folderDropdownBtn');
-        const folderSearchInput = document.getElementById('folderSearchInput');
-        const folderOptions = document.querySelectorAll('.folder-option');
-        const noFolderFound = document.getElementById('noFolderFound');
-        const selectedFolderId = document.getElementById('selectedFolderId');
-        const folderDropdownText = document.getElementById('folderDropdownText');
-
-        // Fokus otomatis ke input search saat dropdown terbuka
-        folderDropdownBtn.addEventListener('shown.bs.dropdown', function () {
-            folderSearchInput.focus();
-        });
-
-        // Fitur Live Search (Menyaring daftar folder secara instan)
-        folderSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            let visibleCount = 0;
-
-            folderOptions.forEach(option => {
-                const text = option.innerText.toLowerCase();
-                if (text.includes(searchTerm)) {
-                    option.style.setProperty('display', 'flex', 'important');
-                    visibleCount++;
-                } else {
-                    option.style.setProperty('display', 'none', 'important');
-                }
-            });
-
-            // Tampilkan ikon "Tidak Ditemukan" jika kosong
-            if (visibleCount === 0) {
-                noFolderFound.classList.remove('d-none');
-            } else {
-                noFolderFound.classList.add('d-none');
-            }
-        });
-
-        // Saat salah satu folder diklik
-        folderOptions.forEach(option => {
-            option.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Ambil ID dan Teks
-                const folderId = this.getAttribute('data-id');
-                const folderText = this.innerText;
-
-                // Masukkan ke Hidden Input untuk dikirim ke Laravel
-                selectedFolderId.value = folderId;
-                
-                // Ubah teks tombol dropdown
-                folderDropdownText.innerText = folderText;
-                folderDropdownText.classList.remove('text-muted');
-                folderDropdownText.classList.add('text-dark', 'fw-bold');
-
-                // Reset pencarian untuk penggunaan berikutnya
-                folderSearchInput.value = '';
-                folderSearchInput.dispatchEvent(new Event('input')); 
-            });
-        });
-
-
-
-
-        // LOGIKA DROPDOWN FILTER PENCARIAN (AKAR/TREE)
-        const filterFolderBtn = document.getElementById('filterFolderBtn');
-        const filterFolderSearch = document.getElementById('filterFolderSearch');
-        const filterFolderOpts = document.querySelectorAll('.filter-folder-opt');
-        const filterNoFolderFound = document.getElementById('filterNoFolderFound');
-        const filterFolderId = document.getElementById('filterFolderId');
-        const filterFolderText = document.getElementById('filterFolderText');
-
-        if(filterFolderBtn) {
-            // Otomatis fokus ke kotak pencarian saat dropdown diklik
-            filterFolderBtn.addEventListener('shown.bs.dropdown', () => filterFolderSearch.focus());
-
-            // Fitur Live Search
-            filterFolderSearch.addEventListener('input', function() {
-                const term = this.value.toLowerCase();
-                let visible = 0;
-                
-                filterFolderOpts.forEach(opt => {
-                    const text = opt.innerText.toLowerCase();
-                    if(text.includes(term)) {
-                        opt.style.setProperty('display', 'flex', 'important');
-                        visible++;
-                    } else {
-                        opt.style.setProperty('display', 'none', 'important');
-                    }
-                });
-                
-                if(visible === 0) {
-                    filterNoFolderFound.classList.remove('d-none');
-                } else {
-                    filterNoFolderFound.classList.add('d-none');
-                }
-            });
-
-            // Saat salah satu opsi diklik
-            filterFolderOpts.forEach(opt => {
-                opt.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const id = this.getAttribute('data-id');
-                    const text = this.getAttribute('data-text');
-
-                    // Isi hidden input dan ubah teks tombol
-                    filterFolderId.value = id;
-                    filterFolderText.innerText = text;
-
-                    // Bersihkan warna pilihan lama, beri warna pada yang baru diklik
-                    filterFolderOpts.forEach(o => o.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'fw-bold'));
-                    this.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'fw-bold');
-                    
-                    // (Opsional) Jika kamu ingin form otomatis ter-submit tanpa harus klik tombol hitam "Filter":
-                    // filterFolderBtn.closest('form').submit();
-                });
-            });
-        }
-    </script>
-
-    <style>
-        .input-group-custom { position: relative; }
-        .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 10; color: #5f6368; }
-        .md-input { padding-left: 40px !important; border-radius: 10px; border: 1px solid #dadce0; }
-        .md-file-input { border-radius: 10px; border: 2px dashed #dadce0; padding: 10px; background: #f8f9fa; }
-        .file-icon-box { width: 48px; height: 48px; }
-        
-        .pagination { margin-bottom: 0; }
-        .page-item.active .page-link { background-color: #212529; border-color: #212529; }
-        .page-link { color: #212529; padding: 0.5rem 1rem; border-radius: 8px; margin: 0 3px; border: 1px solid #dee2e6; }
-        .page-item:not(.active) .page-link:hover { background-color: #f8f9fa; color: #000; }
-        .page-item.disabled .page-link { background-color: transparent; }
-    </style>
 @endsection

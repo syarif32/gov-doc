@@ -73,9 +73,12 @@ class UploadToGoogleDrive implements ShouldQueue
             $document->update([
                 'google_file_id' => $googleFileId,
                 'file_path' => 'Cloud/GoogleDrive',
-                'status' => 'success' // Pastikan kolom status sudah kamu buat di DB
+                'status' => 'success' 
             ]);
-
+            if ($document->is_public) {
+                $googleDriveService->makePublic($googleFileId);
+                \Illuminate\Support\Facades\Log::info("File {$document->title} berhasil di-setting Publik.");
+            }
             // 6. Hapus file sementara menggunakan Storage Facade (Lebih aman dari unlink)
             \Illuminate\Support\Facades\Storage::delete($this->tempFilePath);
 
