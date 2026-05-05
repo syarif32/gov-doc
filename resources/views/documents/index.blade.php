@@ -111,6 +111,7 @@
                     <div class="col-md-2">
                         <a href="{{ route('docs.index') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise"></i> {{ __('Reset') }}</a>
                     </div>
+                    
                 </form>
             </div>
         </div>
@@ -374,6 +375,16 @@
                     <div class="mb-2">
                         <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Select File') }}</label>
                         <input type="file" name="file" class="form-control md-file-input" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary mb-2">{{ __('Visibilitas Dokumen') }}</label>
+                        <div class="input-group-custom">
+                            <span class="input-icon"><i class="bi bi-eye"></i></span>
+                            <select id="isPublicSelect" class="form-select md-input">
+                                <option value="0" selected>🔒 Dibatasi</option>
+                                <option value="1">🌐 Publik (Siapa saja yang memiliki link)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 

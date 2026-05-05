@@ -39,20 +39,79 @@
                                 <label class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2">{{ __('Description / Notes') }}</label>
                                 <textarea name="description" class="form-control md-input-textarea" rows="4" placeholder="{{ __('Add some context about this file...') }}">{{ $document->description }}</textarea>
                             </div>
+                            
                             <div class="mb-4">
-    <label class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2">{{ __('Target Folder / Division') }}</label>
-    <div class="input-group-custom">
-        <span class="input-icon"><i class="bi bi-folder2-open"></i></span>
-        <select name="folder_id" class="form-select md-input" required>
-            @foreach($folders as $f)
-                <option value="{{ $f->id }}" {{ $document->folder_id == $f->id ? 'selected' : '' }}>
-                    [{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}
-                </option>
-            @endforeach
-        </select>
-    </div>
-    <small class="text-muted">{{ __('Pindahkan dokumen ini ke folder bidang lain jika diperlukan.') }}</small>
-</div>
+                                <label class="form-label small fw-semibold text-secondary text-uppercase tracking-wide mb-2">{{ __('Target Folder / Division') }}</label>
+                                
+                                {{-- MESIN PENGURUTAN HIERARKI --}}
+                                @php
+                                    if (!function_exists('buildFolderTree')) {
+                                        function buildFolderTree($folders, $parentId = null, $depth = 0) {
+                                            $result = [];
+                                            $children = $folders->where('parent_id', $parentId)->sortBy('name');
+                                            foreach ($children as $f) {
+                                                $f->depth = $depth; 
+                                                $result[] = $f;
+                                                $result = array_merge($result, buildFolderTree($folders, $f->id, $depth + 1));
+                                            }
+                                            return $result;
+                                        }
+                                    }
+                                    
+                                    $allSortedFolders = buildFolderTree($folders);
+                                    
+                                    // Cari nama folder saat ini
+                                    $currentFolderName = "-- Pilih Folder Tujuan --";
+                                    if ($document->folder_id) {
+                                        $currentFolderObj = $folders->firstWhere('id', $document->folder_id);
+                                        if ($currentFolderObj) {
+                                            $currentFolderName = '[' . ($currentFolderObj->department->name ?? 'Umum') . '] ' . $currentFolderObj->name;
+                                        }
+                                    }
+                                @endphp
+
+                                <!-- CUSTOM SEARCHABLE DROPDOWN -->
+                                <div class="input-group-custom position-relative">
+                                    <span class="input-icon" style="z-index: 1040;"><i class="bi bi-folder2-open"></i></span>
+                                    
+                                    <input type="hidden" name="folder_id" id="hiddenFolderId" value="{{ $document->folder_id }}" required>
+                                    
+                                    <button class="form-select md-input text-start d-flex justify-content-between align-items-center bg-white" type="button" id="folderDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="padding-right: 15px;">
+                                        <span id="folderDropdownText" class="fw-bold text-dark text-truncate" style="max-width: 90%;">{{ $currentFolderName }}</span>
+                                    </button>
+                                    
+                                    <div class="dropdown-menu w-100 p-2 shadow-lg border-0 rounded-4" aria-labelledby="folderDropdownBtn" style="max-height: 300px; overflow-y: auto;">
+                                        
+                                        <div class="position-sticky top-0 bg-white pb-2" style="z-index: 10;">
+                                            <div class="input-group-custom">
+                                                <span class="input-icon" style="left: 10px; z-index: 10;"><i class="bi bi-search" style="font-size: 0.8rem;"></i></span>
+                                                <input type="text" class="form-control form-control-sm bg-light border-0" id="folderSearchInput" placeholder="Ketik nama folder atau bidang..." style="padding-left: 30px; border-radius: 8px;" autocomplete="off">
+                                            </div>
+                                        </div>
+                                        
+                                        <div id="folderOptionsList">
+                                            @foreach($allSortedFolders as $f)
+                                                <a class="dropdown-item rounded-3 py-2 folder-opt d-flex align-items-center" href="#" data-id="{{ $f->id }}">
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle me-2 flex-shrink-0" style="font-size: 0.65rem;">[{{ $f->department->name ?? 'Umum' }}]</span>
+                                                    
+                                                    <span class="text-truncate text-dark small fw-medium" style="padding-left: {{ $f->depth * 15 }}px;">
+                                                        @if($f->depth > 0)
+                                                            <i class="bi bi-arrow-return-right text-muted me-1 opacity-50"></i>
+                                                        @endif
+                                                        <i class="bi bi-folder-fill text-warning me-2"></i>{{ $f->name }}
+                                                    </span>
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                        
+                                        <div id="noFolderFound" class="text-center text-muted py-3 d-none small">
+                                            <i class="bi bi-folder-x fs-4 d-block mb-1 opacity-50"></i>
+                                            Folder tidak ditemukan
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="text-muted mt-2 d-block">{{ __('Pindahkan dokumen ini ke folder bidang lain jika diperlukan.') }}</small>
+                            </div>
 
                             <div class="p-3 bg-info bg-opacity-10 border border-info-subtle rounded-3 mb-4 d-flex align-items-start">
                                 <i class="bi bi-info-circle-fill text-info mt-1 me-3 fs-5"></i>
@@ -75,63 +134,84 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // LOGIKA SEARCH DROPDOWN
+            const hiddenFolderId = document.getElementById('hiddenFolderId');
+            const folderDropdownText = document.getElementById('folderDropdownText');
+            const folderSearchInput = document.getElementById('folderSearchInput');
+            const folderOptions = document.querySelectorAll('.folder-opt');
+            const noFolderFound = document.getElementById('noFolderFound');
+
+            // Mencegah dropdown tertutup saat mengetik di kolom pencarian
+            folderSearchInput.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+
+            folderOptions.forEach(opt => {
+                opt.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const folderId = this.getAttribute('data-id');
+                    
+                    // Ambil teks dari badge dan nama folder
+                    const deptBadge = this.querySelector('.badge').innerText;
+                    const folderName = this.querySelector('.fw-medium').innerText.trim();
+                    
+                    hiddenFolderId.value = folderId;
+                    folderDropdownText.innerText = deptBadge + ' ' + folderName;
+                    
+                    folderSearchInput.value = '';
+                    folderSearchInput.dispatchEvent(new Event('input'));
+                });
+            });
+
+            folderSearchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                let visibleCount = 0;
+
+                folderOptions.forEach(opt => {
+                    const text = opt.innerText.toLowerCase();
+                    if(text.includes(searchTerm)) {
+                        opt.style.setProperty('display', 'flex', 'important');
+                        visibleCount++;
+                    } else {
+                        opt.style.setProperty('display', 'none', 'important');
+                    }
+                });
+
+                if(visibleCount === 0) {
+                    noFolderFound.classList.remove('d-none');
+                } else {
+                    noFolderFound.classList.add('d-none');
+                }
+            });
+        });
+    </script>
+
     <style>
         /* Component: Textarea */
-.md-input-textarea {
-    border-radius: 10px;
-    border: 1px solid #dadce0;
-    font-size: 14px;
-    color: #202124;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    background-color: #fff;
-    padding: 12px 16px;
-    resize: vertical;
-}
-.md-input-textarea:focus {
-    border-color: var(--google-blue);
-    box-shadow: 0 0 0 4px var(--google-blue-focus);
-    outline: none;
-}
+        .md-input-textarea {
+            border-radius: 10px;
+            border: 1px solid #dadce0;
+            font-size: 14px;
+            color: #202124;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background-color: #fff;
+            padding: 12px 16px;
+            resize: vertical;
+        }
+        .md-input-textarea:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+            outline: none;
+        }
 
-/* Component: File Input (Google Style) */
-.md-file-input {
-    border-radius: 10px;
-    border: 2px dashed #dadce0;
-    padding: 10px 14px;
-    background-color: #f8f9fa;
-    color: #5f6368;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-.md-file-input:hover {
-    background-color: #f1f3f4;
-    border-color: #bdc1c6;
-}
-.md-file-input:focus {
-    border-color: var(--google-blue);
-    background-color: #e8f0fe;
-    box-shadow: 0 0 0 4px var(--google-blue-focus);
-    outline: none;
-}
-.md-file-input::file-selector-button {
-    background-color: #fff;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    padding: 6px 12px;
-    color: #1a73e8;
-    font-weight: 600;
-    margin-right: 16px;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-.md-file-input::file-selector-button:hover {
-    background-color: #f8f9fa;
-}
-
-/* Box Ikon Dokumen */
-.file-icon-box {
-    width: 48px;
-    height: 48px;
-}
+        /* Component: Custom Input & Dropdown */
+        .input-group-custom { position: relative; }
+        .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); z-index: 10; color: #6c757d; }
+        .md-input { padding-left: 42px !important; border-radius: 10px; border: 1px solid #dee2e6; height: 46px; font-size: 0.95rem; transition: all 0.2s; }
+        .md-input:focus { border-color: #0d6efd; box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15); }
+        select.md-input { appearance: none; padding-right: 36px; }
     </style>
 @endsection

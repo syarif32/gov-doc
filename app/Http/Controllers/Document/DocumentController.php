@@ -20,16 +20,33 @@ class DocumentController extends Controller
     {
         $user = auth()->user();
         $query = Document::query();
+        
         if ($request->filled('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
         }
         if ($request->filled('tanggal')) {
             $query->whereDate('created_at', $request->tanggal);
         }
-
-        // Sortir berdasarkan Kategori/Folder
         if ($request->filled('folder_id')) {
-            $query->where('folder_id', $request->folder_id);
+            $targetFolderId = $request->folder_id;
+            $folderIds = [$targetFolderId]; // Array untuk menampung ID folder utama & anak-anaknya
+
+            // Ambil semua data folder untuk dilacak
+            $allFolders = Folder::select('id', 'parent_id')->get();
+            
+            // Fungsi rekursif (berulang) untuk melacak sub-folder
+            $getChildren = function ($parentId) use (&$getChildren, &$folderIds, $allFolders) {
+                $children = $allFolders->where('parent_id', $parentId);
+                foreach ($children as $child) {
+                    $folderIds[] = $child->id; // Masukkan ID anak ke dalam kantong pencarian
+                    $getChildren($child->id); // Cari lagi apakah anak ini punya anak (cucu)
+                }
+            };
+            
+            $getChildren($targetFolderId); // Jalankan pelacakan!
+
+            // Ubah pencarian: "Cari dokumen yang folder_id-nya ada di dalam daftar $folderIds"
+            $query->whereIn('folder_id', $folderIds);
         }
 
         // --- 2. LOGIKA HAK AKSES ---
@@ -41,7 +58,8 @@ class DocumentController extends Controller
                     ->orWhereHas('permissions', function ($pq) use ($user) {
                         $pq->where('user_id', $user->id)
                             ->orWhere('department_id', $user->department_id);
-                    });
+                    })
+                    ->orWhere('is_public', true); // Pastikan dokumen publik juga ikut terbaca jika ada
             })
                 ->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
                 ->latest()
@@ -55,6 +73,7 @@ class DocumentController extends Controller
 
         return view('documents.index', compact('documents', 'users', 'folders', 'departments'));
     }
+
     // Fungsi Baru: Menampilkan HANYA dokumen milik user yang login
     public function myDocuments(Request $request)
     {
@@ -63,15 +82,28 @@ class DocumentController extends Controller
         // Kunci query HANYA untuk dokumen yang dibuat oleh user ini
         $query = Document::where('owner_id', $user->id);
 
-        // --- FITUR PENCARIAN & SORTIR (Sama seperti index) ---
         if ($request->filled('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
         }
         if ($request->filled('tanggal')) {
             $query->whereDate('created_at', $request->tanggal);
         }
+
         if ($request->filled('folder_id')) {
-            $query->where('folder_id', $request->folder_id);
+            $targetFolderId = $request->folder_id;
+            $folderIds = [$targetFolderId];
+
+            $allFolders = Folder::select('id', 'parent_id')->get();
+            $getChildren = function ($parentId) use (&$getChildren, &$folderIds, $allFolders) {
+                $children = $allFolders->where('parent_id', $parentId);
+                foreach ($children as $child) {
+                    $folderIds[] = $child->id;
+                    $getChildren($child->id);
+                }
+            };
+            $getChildren($targetFolderId);
+
+            $query->whereIn('folder_id', $folderIds);
         }
 
         $documents = $query->with(['folder', 'permissions.user', 'permissions.department'])
@@ -83,7 +115,6 @@ class DocumentController extends Controller
         $folders = Folder::with('department')->get();
         $departments = Department::all();
 
-        // Kita buat view baru bernama 'my-documents'
         return view('documents.my-documents', compact('documents', 'users', 'folders', 'departments'));
     }
 
