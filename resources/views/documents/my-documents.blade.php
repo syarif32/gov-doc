@@ -2,6 +2,24 @@
 
 @section('content')
 
+{{-- MESIN PENGURUTAN HIERARKI FOLDER (Ditambahkan di awal agar bisa diakses semua bagian) --}}
+@php
+    if (!function_exists('buildFolderTree')) {
+        function buildFolderTree($folders, $parentId = null, $depth = 0) {
+            $result = [];
+            $children = $folders->where('parent_id', $parentId)->sortBy('name');
+            foreach ($children as $f) {
+                $f->depth = $depth; 
+                $result[] = $f;
+                $result = array_merge($result, buildFolderTree($folders, $f->id, $depth + 1));
+            }
+            return $result;
+        }
+    }
+    // Susun semua folder menjadi struktur pohon
+    $allSortedFolders = buildFolderTree($folders);
+@endphp
+
 @if(session('error'))
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
@@ -70,17 +88,18 @@
                                 </a>
                                 <hr class="dropdown-divider my-1">
                                 
-                                @foreach($folders as $f)
+                                @foreach($allSortedFolders as $f)
                                     @php
-                                        $isSubFolder = isset($f->parent_id) && $f->parent_id != null;
-                                        $paddingLeft = $isSubFolder ? 'ms-3' : ''; 
-                                        $icon = $isSubFolder ? 'bi-arrow-return-right text-muted' : 'bi-folder-fill text-warning';
                                         $fullText = '[' . ($f->department->name ?? 'Umum') . '] ' . $f->name;
                                         $isSelected = request('folder_id') == $f->id;
                                     @endphp
                                     
-                                    <a class="dropdown-item rounded-3 py-2 filter-folder-opt {{ $paddingLeft }} {{ $isSelected ? 'bg-primary bg-opacity-10 text-primary fw-bold' : 'text-dark' }} d-flex align-items-center" href="#" data-id="{{ $f->id }}" data-text="{{ $fullText }}">
-                                        <i class="{{ $icon }} fs-5 me-2 flex-shrink-0"></i>
+                                    <a class="dropdown-item rounded-3 py-2 filter-folder-opt {{ $isSelected ? 'bg-primary bg-opacity-10 text-primary fw-bold' : 'text-dark' }} d-flex align-items-center" href="#" data-id="{{ $f->id }}" data-text="{{ $fullText }}" style="{{ $f->depth > 0 ? 'padding-left: '.($f->depth * 20 + 16).'px !important;' : '' }}">
+                                        @if($f->depth > 0)
+                                            <i class="bi bi-arrow-return-right text-muted fs-6 me-2 flex-shrink-0 opacity-50"></i>
+                                        @else
+                                            <i class="bi bi-folder-fill text-warning fs-5 me-2 flex-shrink-0"></i>
+                                        @endif
                                         <div class="overflow-hidden">
                                             <div class="text-truncate small fw-medium">{{ $f->name }}</div>
                                             <div class="text-uppercase" style="font-size: 0.6rem; opacity: 0.6;">{{ $f->department->name ?? 'Umum' }}</div>
@@ -123,8 +142,12 @@
                     <table class="table table-hover table-borderless align-middle mb-0" id="documentTable">
                         <thead class="border-bottom border-light bg-light bg-opacity-50">
                             <tr>
-                                <th class="ps-4 py-3 text-secondary small fw-semibold text-uppercase tracking-wide" style="width: 35%;">{{ __('File Name') }}</th>
+                                <th class="ps-4 py-3 text-secondary small fw-semibold text-uppercase tracking-wide" style="width: 30%;">{{ __('File Name') }}</th>
                                 <th class="py-3 text-secondary small fw-semibold text-uppercase tracking-wide">{{ __('Folder') }}</th>
+                                
+                                <!-- KOLOM BARU: FOLDER INDUK -->
+                                <th class="py-3 text-secondary small fw-semibold text-uppercase tracking-wide">{{ __('Folder Induk') }}</th>
+                                
                                 <th class="py-3 text-secondary small fw-semibold text-uppercase tracking-wide">{{ __('Owner') }}</th>
                                 <th class="py-3 text-secondary small fw-semibold text-uppercase tracking-wide">{{ __('Size') }}</th>
                                 <th class="py-3 text-secondary small fw-semibold text-uppercase tracking-wide">{{ __('Uploaded') }}</th>
@@ -152,20 +175,19 @@
                                                 <div class="fw-semibold text-dark text-truncate" title="{{ $doc->title }}">{{ $doc->title }}</div>
                                                 <div class="d-flex align-items-center mt-1">
                                                    @if($doc->is_public)
-    <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dapat dilihat oleh semua orang">
-        <i class="bi bi-globe me-1"></i> Publik
-    </span>
-@elseif($doc->permissions->count() == 0)
-    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Hanya Anda yang bisa melihat ini">
-        <i class="bi bi-lock-fill me-1"></i> Privat
-    </span>
-@else
-    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dibagikan ke {{ $doc->permissions->count() }} entitas">
-        <i class="bi bi-people-fill me-1"></i> Dibagikan ({{ $doc->permissions->count() }})
-    </span>
-@endif
-</div>
-                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 text-uppercase" style="font-size: 0.65rem;">{{ $ext }}</span>
+                                                        <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dapat dilihat oleh semua orang">
+                                                            <i class="bi bi-globe me-1"></i> Publik
+                                                        </span>
+                                                    @elseif($doc->permissions->count() == 0)
+                                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Hanya Anda yang bisa melihat ini">
+                                                            <i class="bi bi-lock-fill me-1"></i> Privat
+                                                        </span>
+                                                    @else
+                                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle" style="font-size: 0.65rem;" data-bs-toggle="tooltip" title="Dibagikan ke {{ $doc->permissions->count() }} entitas">
+                                                            <i class="bi bi-people-fill me-1"></i> Dibagikan ({{ $doc->permissions->count() }})
+                                                        </span>
+                                                    @endif
+                                                    <span class="ms-1 badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 text-uppercase" style="font-size: 0.65rem;">{{ $ext }}</span>
                                                     @if($doc->file_size == 0)
                                                         <span class="ms-1 badge bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-0" style="font-size: 0.65rem;">Baru Dibuat</span>
                                                     @endif
@@ -174,10 +196,22 @@
                                         </div>
                                     </td>
                                     <td class="py-3">
-                                        <span class="badge bg-light text-dark border fw-normal">
+                                        <span class="badge bg-light text-dark border fw-normal text-truncate d-inline-block" style="max-width: 150px;">
                                             <i class="bi bi-folder2 me-1"></i> {{ $doc->folder->name ?? 'Unsorted' }}
                                         </span>
                                     </td>
+                                    
+                                    <!-- DATA BARU: FOLDER INDUK -->
+                                    <td class="py-3">
+                                        <span class="text-secondary small fw-medium">
+                                            @if($doc->folder && $doc->folder->parent)
+                                                <i class="bi bi-diagram-3 me-1"></i> {{ $doc->folder->parent->name }}
+                                            @else
+                                                <i class="bi bi-hdd-network me-1"></i> Folder Utama
+                                            @endif
+                                        </span>
+                                    </td>
+
                                     <td class="py-3">
                                         <div class="d-flex align-items-center">
                                             <div class="avatar-circle-sm bg-secondary bg-opacity-10 text-secondary fw-bold rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 28px; height: 28px; font-size: 11px;">
@@ -256,7 +290,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-5">
+                                    <td colspan="7" class="text-center py-5">
                                         <div class="text-secondary mb-2"><i class="bi bi-folder-x fs-1"></i></div>
                                         <div class="fw-medium">{{ __('Tidak ada dokumen ditemukan') }}</div>
                                         <div class="small">Silakan ubah filter pencarian atau buat dokumen baru.</div>
@@ -317,11 +351,17 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Daftar Folder dengan Hierarki -->
                                 <div id="folderOptionsList">
-                                    @foreach($folders as $f)
+                                    @foreach($allSortedFolders as $f)
                                         <a class="dropdown-item rounded-3 py-2 folder-option d-flex align-items-center" href="#" data-id="{{ $f->id }}">
                                             <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle me-2 flex-shrink-0" style="font-size: 0.65rem;">[{{ $f->department->name ?? 'Umum' }}]</span>
-                                            <span class="folder-name text-truncate text-dark small fw-medium">{{ $f->name }}</span>
+                                            <span class="folder-name text-truncate text-dark small fw-medium" style="padding-left: {{ $f->depth * 15 }}px;">
+                                                @if($f->depth > 0)
+                                                    <i class="bi bi-arrow-return-right text-muted me-1 opacity-50"></i>
+                                                @endif
+                                                <i class="bi bi-folder-fill text-warning me-2"></i>{{ $f->name }}
+                                            </span>
                                         </a>
                                     @endforeach
                                 </div>
@@ -330,7 +370,6 @@
                                     <i class="bi bi-folder-x fs-4 d-block mb-1 opacity-50"></i>
                                     Folder tidak ditemukan
                                 </div>
-                                
                             </div>
                         </div>
                     </div>
@@ -400,8 +439,11 @@
                             <span class="input-icon"><i class="bi bi-folder-symlink"></i></span>
                             <select name="folder_id" class="form-select md-input" required>
                                 <option value="" disabled selected>{{ __('Pilih Folder Tujuan...') }}</option>
-                                @foreach($folders as $f)
-                                    <option value="{{ $f->id }}">[{{ $f->department->name ?? 'Umum' }}] {{ $f->name }}</option>
+                                {{-- Hierarki visual dengan spasi HTML --}}
+                                @foreach($allSortedFolders as $f)
+                                    <option value="{{ $f->id }}">
+                                        [{{ $f->department->name ?? 'Umum' }}] {!! str_repeat('&nbsp;&nbsp;&nbsp;', $f->depth) !!} {!! $f->depth > 0 ? '&#x21B3; ' : '' !!} {{ $f->name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
@@ -588,5 +630,7 @@
             <p class="text-secondary small mt-3 mb-0 text-center" id="uploadStatusMessage">Mentransfer file ke Server...</p>
         </div>
     </div>
+    <link rel="stylesheet" href="https://unpkg.com/dropzone@5/dist/min/dropzone.min.css" type="text/css" />
+
 @include('documents.script')
 @endsection
