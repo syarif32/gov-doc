@@ -518,5 +518,54 @@ class DocumentController extends Controller
 
         return back()->with('success', 'Sistem sedang memancing ulang sinkronisasi ke Google Drive...');
     }
+
+    // ====================================================================
+    // FITUR BARU: FILE EXPLORER (TREE VIEW & AJAX)
+    // ====================================================================
+    
+    public function explorer(Request $request)
+    {
+        // Ambil semua departemen beserta foldernya untuk membentuk "Hutan" (Pohon Direktori)
+        $departments = Department::with(['folders' => function($q) {
+            $q->orderBy('name', 'asc');
+        }])->get();
+
+        return view('documents.explorer', compact('departments'));
+    }
+
+    public function fetchExplorerFiles(Request $request, $folder_id)
+    {
+        $user = auth()->user();
+        $folder = Folder::with('department')->findOrFail($folder_id);
+
+        // Kunci pencarian hanya pada folder yang di-klik
+        $query = Document::where('folder_id', $folder_id);
+
+        // LOGIKA HAK AKSES (Sama persis dengan halaman Index)
+        if ($user->role_level !== 'admin') {
+            $query->where(function ($q) use ($user) {
+                $q->where('owner_id', $user->id)
+                    ->orWhereHas('permissions', function ($pq) use ($user) {
+                        $pq->where('user_id', $user->id)
+                            ->orWhere('department_id', $user->department_id);
+                    })
+                    ->orWhere('is_public', true);
+            });
+        }
+
+        $documents = $query->with(['owner', 'folder', 'permissions.user', 'permissions.department'])
+                           ->latest()
+                           ->get(); 
+
+        // Render HTML kepingan tabel file
+        $html = view('partials.explorer-files', compact('documents', 'folder'))->render();
+
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'folder_name' => $folder->name,
+            'department_name' => $folder->department->name ?? 'Umum'
+        ]);
+    }
     
 }

@@ -73,6 +73,10 @@ Route::get('/editor/{document}', [DocumentController::class, 'editor'])->name('e
         Route::post('/{id}/restore', [DocumentController::class, 'restore'])->name('restore');
         Route::delete('/{id}/force-delete', [DocumentController::class, 'forceDelete'])->name('forceDelete');
        Route::post('/{id}/unshare-public', [DocumentController::class, 'unsharePublic'])->name('unshare_public');
+       // Route untuk halaman File Explorer
+// --- ROUTE UNTUK FILE EXPLORER ---
+        Route::get('/explorer', [\App\Http\Controllers\Document\DocumentController::class, 'explorer'])->name('explorer');
+        Route::get('/explorer/files/{folder_id}', [\App\Http\Controllers\Document\DocumentController::class, 'fetchExplorerFiles'])->name('explorer.files');
     });
 
   

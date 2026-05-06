@@ -134,20 +134,24 @@
     <script src="{{ asset('assets/js/jquery.min.js') }}"></script>
     <script src="{{ asset('assets/js/bootstrap.bundle.min.js') }}"></script>
 
-    <!-- Real-time Echo (Local Reverb) -->
+   <!-- Real-time Echo (Local Reverb) -->
     <script src="{{ asset('assets/js/pusher.min.js') }}"></script>
     <script src="{{ asset('assets/js/echo.iife.js') }}"></script>
 
     <script>
-        window.Pusher = Pusher;
-        window.Echo = new Echo({
-            broadcaster: 'reverb',
-            key: '{{ env("REVERB_APP_KEY", "kosong") }}',
-            wsHost: '{{ env("REVERB_HOST", "localhost") }}',
-            wsPort: {{ env("REVERB_PORT", 8080) }}, /* <-- SAYA BERI ANGKA 8080 AGAR TIDAK ERROR */
-            forceTLS: false,
-            enabledTransports: ['ws', 'wss'],
-        });
+        // Hanya jalankan WebSockets jika REVERB_APP_KEY benar-benar ada di .env
+        @if(env('REVERB_APP_KEY'))
+            window.Pusher = Pusher;
+            window.Echo = new Echo({
+                broadcaster: 'reverb',
+                key: '{{ env('REVERB_APP_KEY') }}',
+                wsHost: '{{ env('REVERB_HOST', 'localhost') }}',
+                wsPort: {{ env('REVERB_PORT', 8080) }},
+                forceTLS: false,
+                enabledTransports: ['ws', 'wss'],
+            });
+        @endif
+   
 
         // =========================================================
         // LOGIKA PEMBUKA SIDEBAR DI HP (FIXED)

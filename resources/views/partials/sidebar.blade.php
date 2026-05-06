@@ -36,6 +36,9 @@
             <a href="{{ route('docs.myDocuments') }}" class="nav-link side-link {{ request()->routeIs('docs.myDocuments') ? 'active' : '' }}">
                 <i class="bi bi-person-workspace"></i> <span>{{ __('My Documents') }}</span>
             </a>
+            <a href="{{ route('docs.explorer') }}" class="nav-link side-link {{ request()->routeIs('docs.explorer') ? 'active' : '' }}">
+                <i class="bi bi-hdd-network"></i> <span>{{ __('File Explorer') }}</span>
+            </a>
             <a href="{{ route('docs.trash') }}" class="nav-link side-link {{ request()->routeIs('docs.trash') ? 'active' : '' }}">
                 <i class="bi bi-trash3"></i> <span>{{ __('Trash') }}</span>
             </a>
