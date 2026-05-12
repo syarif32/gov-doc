@@ -139,6 +139,24 @@
     "Trash": "Sampah",
     "Restore": "Pulihkan",
     "Force Delete": "Hapus Permanen",
+    "Are you sure you want to permanently delete this document?": "Apakah Anda yakin ingin menghapus dokumen ini secara permanen?",
+    "Document moved to trash successfully.": "Dokumen berhasil dipindahkan ke sampah.",
+    "Document restored successfully.": "Dokumen berhasil dipulihkan.",
+    "Document permanently deleted successfully.": "Dokumen berhasil dihapus permanen.",
+    "Folders Explorer": "Penjelajah Folder",
+    "Folders Explorer Description": "Jelajahi struktur folder dan dokumen di server",
+    "No documents found in this folder.": "Tidak ada dokumen yang ditemukan di folder ini.",
+    "Back to My Documents": "Kembali ke Dokumen Saya",
+    "System Description": "Akses ruang kerja kolaboratif, kelola arsip, dan amankan data internal secara efisien.",
+    "title_auth": "Sistem Manajemen Dokumen Digital",
+    "Infrastruktur Terenkripsi": "Infrastruktur Terenkripsi",
+    "Sinkronisasi Real-time": "Sinkronisasi Real-time",
+    "Pencarian Lanjutan": "Pencarian Lanjutan",
+    "Ruang Kerja Kolaboratif": "Ruang Kerja Kolaboratif",
+    "Audit Log Komprehensif": "Audit Log Komprehensif",
+    "Pemerintah Kota Semarang": "Pemerintah Kota Semarang",
+    "inactive": "tidak aktif",
     "No documents in trash.": "Tidak ada dokumen di sampah."
+    
     
 }

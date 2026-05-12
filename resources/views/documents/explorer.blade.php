@@ -8,8 +8,8 @@
             <i class="bi bi-hdd-network fs-4"></i>
         </div>
         <div>
-            <h2 class="fw-bold text-dark mb-0" style="letter-spacing: -0.5px;">File Explorer</h2>
-            <p class="text-secondary small mb-0">Jelajahi hierarki direktori secara interaktif</p>
+            <h3 class="mb-0 fw-bold text-dark">{{ __('Folders Explorer') }}</h3>
+            <div class="small text-secondary">Jelajahi struktur folder dan dokumen di server</div>
         </div>
     </div>
 
@@ -24,16 +24,43 @@
                 </div>
                 <div class="card-body p-0 overflow-auto custom-scrollbar" style="height: calc(100vh - 250px);">
                     
-                    {{-- FUNGSI PHP UNTUK RENDER POHON --}}
+                    {{-- FUNGSI PHP UNTUK RENDER POHON BESERTA RBAC (HAK AKSES) --}}
                     @php
+                        $currentUser = auth()->user();
+                        $isAdmin = $currentUser->role_level === 'admin';
+
                         if (!function_exists('renderTreeAJAX')) {
-                            function renderTreeAJAX($folders, $parentId = null) {
+                            function renderTreeAJAX($folders, $parentId = null, $user, $isAdmin) {
                                 $children = $folders->where('parent_id', $parentId)->sortBy('name');
                                 if ($children->isEmpty()) return '';
 
                                 $html = '<ul class="folder-tree">';
+                                $hasVisibleItems = false; // Tracker untuk mengecek apakah ada isi di cabang ini
+
                                 foreach ($children as $child) {
-                                    $hasChildren = $folders->where('parent_id', $child->id)->isNotEmpty();
+                                    $subfoldersCount = $folders->where('parent_id', $child->id)->count();
+                                    
+                                    // SAKTI: Hitung jumlah file fisik BERDASARKAN HAK AKSES USER YANG LOGIN
+                                    $query = \App\Models\Document::where('folder_id', $child->id);
+                                    if (!$isAdmin) {
+                                        $query->where(function ($q) use ($user) {
+                                            $q->where('owner_id', $user->id)
+                                              ->orWhereHas('permissions', function ($pq) use ($user) {
+                                                  $pq->where('user_id', $user->id)
+                                                     ->orWhere('department_id', $user->department_id);
+                                              })
+                                              ->orWhere('is_public', true);
+                                        });
+                                    }
+                                    $filesCount = $query->count();
+                                    
+                                    // AUTO-HIDE: Jika bukan admin, dan folder ini tidak punya anak, SERTA tidak ada file yang bisa diakses -> SEMBUNYIKAN!
+                                    if (!$isAdmin && $subfoldersCount == 0 && $filesCount == 0) {
+                                        continue; 
+                                    }
+
+                                    $hasVisibleItems = true;
+                                    $hasChildren = $subfoldersCount > 0;
                                     $toggleIcon = $hasChildren ? '<i class="bi bi-chevron-right folder-toggle text-secondary" data-bs-toggle="collapse" data-bs-target="#collapseFolder'.$child->id.'"></i>' : '<i class="bi bi-dot text-light"></i>';
                                     
                                     $html .= '<li>';
@@ -41,21 +68,50 @@
                                     $html .= $toggleIcon;
                                     $html .= '<i class="bi bi-folder-fill folder-icon text-warning mx-2"></i>';
                                     $html .= '<span class="folder-name text-truncate">'.$child->name.'</span>';
-                                    $html .= '</div>';
+                                    
+                                    // ---- UI BADGE INDIKATOR DI KANAN ----
+                                    $html .= '<div class="ms-auto d-flex align-items-center gap-1 opacity-75">';
+                                    
+                                    if ($subfoldersCount > 0) {
+                                        $html .= '<span class="badge bg-warning bg-opacity-25 text-dark border border-warning-subtle rounded-pill fw-medium d-flex align-items-center" style="font-size: 0.65rem;" title="'.$subfoldersCount.' Sub-folder"><i class="bi bi-folder-fill text-warning me-1"></i>'.$subfoldersCount.'</span>';
+                                    }
+                                    
+                                    if ($filesCount > 0) {
+                                        $html .= '<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle rounded-pill fw-medium d-flex align-items-center" style="font-size: 0.65rem;" title="'.$filesCount.' Dokumen Tersedia"><i class="bi bi-file-earmark-text-fill me-1"></i>'.$filesCount.'</span>';
+                                    }
+                                    
+                                    if ($subfoldersCount == 0 && $filesCount == 0) {
+                                        $html .= '<span class="badge bg-light text-muted border border-light rounded-pill fw-normal" style="font-size: 0.6rem;">Kosong</span>';
+                                    }
+                                    
+                                    $html .= '</div></div>';
 
+                                    // Render anak-anak folder secara rekursif
                                     if ($hasChildren) {
-                                        $html .= '<div id="collapseFolder'.$child->id.'" class="collapse">'.renderTreeAJAX($folders, $child->id).'</div>';
+                                        $childHtml = renderTreeAJAX($folders, $child->id, $user, $isAdmin);
+                                        // Jangan cetak div collapse jika anak-anaknya semua disembunyikan
+                                        if ($childHtml !== '') {
+                                            $html .= '<div id="collapseFolder'.$child->id.'" class="collapse">'.$childHtml.'</div>';
+                                        }
                                     }
                                     $html .= '</li>';
                                 }
                                 $html .= '</ul>';
-                                return $html;
+                                
+                                return $hasVisibleItems ? $html : '';
                             }
                         }
                     @endphp
 
                     <ul class="root-tree mt-3">
                         @foreach($departments as $dept)
+                            @php
+                                $renderedTree = renderTreeAJAX($dept->folders, null, $currentUser, $isAdmin);
+                                
+                                // AUTO-HIDE DEPARTEMEN: Jika departemen ini tidak ada file/folder yang bisa diakses user biasa, sembunyikan utuh!
+                                if (!$isAdmin && $renderedTree === '') continue;
+                            @endphp
+                            
                             <li class="mb-2">
                                 <div class="dept-label d-flex align-items-center fw-bold text-dark px-3 py-2" data-bs-toggle="collapse" data-bs-target="#deptCollapse{{ $dept->id }}" style="cursor: pointer; background: #f8f9fa;">
                                     <i class="bi bi-building text-primary me-2"></i> 
@@ -63,8 +119,8 @@
                                     <i class="bi bi-chevron-down ms-auto text-secondary" style="font-size: 0.8rem;"></i>
                                 </div>
                                 <div class="collapse show" id="deptCollapse{{ $dept->id }}">
-                                    @if($dept->folders->count() > 0)
-                                        {!! renderTreeAJAX($dept->folders) !!}
+                                    @if($renderedTree !== '')
+                                        {!! $renderedTree !!}
                                     @else
                                         <div class="small text-muted ps-5 py-2 fst-italic">Kosong</div>
                                     @endif
@@ -109,7 +165,6 @@
     .root-tree { list-style: none; padding-left: 0; margin: 0; }
     .folder-tree { list-style: none; padding-left: 15px; margin-top: 2px; }
     
-    /* Efek garis cabang (opsional) */
     .folder-tree .folder-tree { border-left: 1px dashed #dee2e6; margin-left: 12px; }
 
     .folder-item {
@@ -136,7 +191,6 @@
         transition: transform 0.2s;
     }
     
-    /* Animasi rotasi panah saat expand */
     .folder-toggle[aria-expanded="true"] { transform: rotate(90deg); color: #1a73e8 !important; }
 </style>
 
@@ -149,10 +203,8 @@
 
         folderItems.forEach(item => {
             item.addEventListener('click', function(e) {
-                // Jangan picu AJAX jika yang diklik adalah Ikon Panah (Expand/Collapse)
                 if(e.target.classList.contains('folder-toggle')) return;
 
-                // 1. Ubah Status Aktif (Warna UI)
                 folderItems.forEach(f => {
                     f.classList.remove('active');
                     let icon = f.querySelector('.folder-icon');
@@ -165,14 +217,11 @@
                 activeIcon.classList.remove('bi-folder-fill', 'text-warning');
                 activeIcon.classList.add('bi-folder2-open', 'text-primary');
 
-                // 2. Persiapkan UI untuk Loading
                 const folderId = this.getAttribute('data-id');
                 emptyState.classList.add('d-none');
                 fileResult.classList.add('d-none');
                 loadingState.classList.remove('d-none');
 
-                // 3. Tarik Data menggunakan AJAX (Fetch API)
-                // Kita beri Laravel ID palsu 'DUMMY_ID' agar tidak error, lalu kita replace pakai JS
                 let baseUrl = "{{ route('docs.explorer.files', 'DUMMY_ID') }}";
                 const fetchUrl = baseUrl.replace('DUMMY_ID', folderId);
                 
@@ -181,7 +230,7 @@
                         if (!response.ok) {
                             throw new Error('Terjadi kesalahan jaringan atau route tidak ditemukan');
                         }
-                        return response.json(); // Cukup dipanggil 1 kali di sini
+                        return response.json(); 
                     })
                     .then(data => {
                         loadingState.classList.add('d-none');

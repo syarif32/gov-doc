@@ -159,7 +159,7 @@ class DocumentController extends Controller
             // Dispatch akan membebaskan user tanpa harus menunggu Google API selesai
             UploadToGoogleDrive::dispatch($doc->id, $tempPath, $targetFolderId, $isConvertible);
 
-            auth()->user()->logAction("Mengantrekan upload: " . $doc->title);
+            auth()->user()->logAction("Upload: " . $doc->title);
 
             // User langsung diarahkan balik dalam waktu 0.1 detik!
             return back()->with('success', __('File sedang diunggah ke awan. Anda bisa menutup halaman atau melakukan hal lain!'));
@@ -341,14 +341,15 @@ class DocumentController extends Controller
 
     public function editor(Document $document)
     {
-        // Cek Keamanan: Apakah user berhak melihat file ini?
+        
         $user = auth()->user();
         $hasPermission = \App\Models\DocumentPermission::where('document_id', $document->id)
             ->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)->orWhere('department_id', $user->department_id);
             })->exists();
 
-        if ($user->role_level !== 'admin' && $document->owner_id !== $user->id && !$hasPermission) {
+        // !$document->is_public 
+        if ($user->role_level !== 'admin' && $document->owner_id !== $user->id && !$hasPermission && !$document->is_public) {
             abort(403, 'Akses Ditolak');
         }
 
@@ -398,7 +399,13 @@ class DocumentController extends Controller
             $googleRole = $request->access_level === 'write' ? 'writer' : 'reader';
             
             if ($doc->google_file_id) {
-                $googleDriveService->grantPublicAccess($doc->google_file_id, $googleRole); 
+                // TANGKAP STATUS DARI GOOGLE
+                $apiSuccess = $googleDriveService->grantPublicAccess($doc->google_file_id, $googleRole); 
+                
+                // JIKA GOOGLE MENOLAK
+                if (!$apiSuccess) {
+                    return back()->with('error', 'Status lokal berhasil diubah, TAPI gagal sinkronisasi ke Google Drive. Silakan cek/perbarui Token API Google Anda!');
+                }
             }
             $statusText = $googleRole === 'writer' ? 'Editor' : 'Viewer';
             return back()->with('success', "Dokumen sekarang bersifat Publik ($statusText) dan tersinkronisasi di Google Drive!");
@@ -408,7 +415,10 @@ class DocumentController extends Controller
         if ($doc->is_public) {
             $doc->update(['is_public' => false]);
             if ($doc->google_file_id) {
-                $googleDriveService->removePublicAccess($doc->google_file_id);
+                $apiSuccess = $googleDriveService->removePublicAccess($doc->google_file_id);
+                if (!$apiSuccess) {
+                    return back()->with('error', 'Status lokal berhasil diubah, TAPI gagal mencabut akses publik di Google Drive. Silakan cek/perbarui Token API Google Anda!');
+                }
             }
         }
 
@@ -420,21 +430,28 @@ class DocumentController extends Controller
         ]);
 
         // --- 4. SINKRONISASI MASSAL KE GOOGLE DRIVE (TERMASUK DEPARTEMEN) ---
+        $apiSuccess = true; // Set default true
         if ($doc->google_file_id) {
             $googleRole = $request->access_level === 'write' ? 'writer' : 'reader';
             
             if ($request->share_type === 'user' && $request->user_id) {
                 $user = \App\Models\User::find($request->user_id);
                 if ($user && $user->email) {
-                    $googleDriveService->grantAccess($doc->google_file_id, $user->email, $googleRole);
+                    $apiSuccess = $googleDriveService->grantAccess($doc->google_file_id, $user->email, $googleRole);
                 }
             } elseif ($request->share_type === 'department' && $request->department_id) {
                 // SAKTI: Ambil SEMUA pegawai di dalam departemen itu yang punya email!
                 $deptUsers = \App\Models\User::where('department_id', $request->department_id)->whereNotNull('email')->get();
                 foreach ($deptUsers as $dUser) {
-                    $googleDriveService->grantAccess($doc->google_file_id, $dUser->email, $googleRole);
+                    $result = $googleDriveService->grantAccess($doc->google_file_id, $dUser->email, $googleRole);
+                    if (!$result) { $apiSuccess = false; } // Jika ada satu saja yang gagal, tandai error
                 }
             }
+        }
+
+        // TAMPILKAN ALERT SESUAI HASILNYA
+        if (!$apiSuccess) {
+            return back()->with('error', 'Akses tersimpan di sistem, TAPI gagal disinkronkan ke Google Drive (Token API Kadaluarsa / Email Tidak Valid).');
         }
 
         return back()->with('success', 'Akses spesifik berhasil diberikan dan disinkronkan ke Google Drive!');
@@ -446,24 +463,32 @@ class DocumentController extends Controller
             abort(403, 'Anda tidak memiliki izin untuk mencabut akses dokumen ini.');
         }
 
+        $apiSuccess = true; // Set default true
+
         // --- SINKRONISASI PENCABUTAN MASSAL DARI GOOGLE DRIVE ---
         if ($permission->document->google_file_id) {
             if ($permission->user_id) {
                 $user = \App\Models\User::find($permission->user_id);
                 if ($user && $user->email) {
-                    $googleDriveService->removeAccess($permission->document->google_file_id, $user->email);
+                    $apiSuccess = $googleDriveService->removeAccess($permission->document->google_file_id, $user->email);
                 }
             } elseif ($permission->department_id) {
                 // Cabut akses SEMUA orang di dalam departemen tersebut!
                 $deptUsers = \App\Models\User::where('department_id', $permission->department_id)->whereNotNull('email')->get();
                 foreach ($deptUsers as $dUser) {
-                    $googleDriveService->removeAccess($permission->document->google_file_id, $dUser->email);
+                    $result = $googleDriveService->removeAccess($permission->document->google_file_id, $dUser->email);
+                    if (!$result) { $apiSuccess = false; } // Jika ada satu saja yang gagal, tandai error
                 }
             }
         }
         
         $permission->delete();
         auth()->user()->logAction("Revoked access permission ID: " . $permission->id . " for document ID: " . $permission->document_id);
+
+        // TAMPILKAN ALERT JIKA GOOGLE MENOLAK
+        if (!$apiSuccess) {
+            return back()->with('error', 'Akses dicabut dari sistem, TAPI gagal dicabut dari Google Drive. Silakan cek/perbarui Token API Google Anda!');
+        }
 
         return back()->with('success', __('Akses berhasil dicabut dari sistem dan dari Google Drive!'));
     }
@@ -480,9 +505,16 @@ class DocumentController extends Controller
         $document->is_public = false;
         $document->save();
 
+        $apiSuccess = true;
+
         // SAATNYA MENGHUBUNGI GOOGLE UNTUK MENCABUT KUNCINYA
         if ($document->google_file_id) {
-            $googleDriveService->removePublicAccess($document->google_file_id);
+            $apiSuccess = $googleDriveService->removePublicAccess($document->google_file_id);
+        }
+
+        // TAMPILKAN ALERT JIKA GOOGLE MENOLAK
+        if (!$apiSuccess) {
+            return back()->with('error', 'Akses publik dicabut dari sistem, TAPI gagal dicabut dari Google Drive. Silakan cek/perbarui Token API Google Anda!');
         }
 
         return back()->with('success', 'Akses publik berhasil dicabut dari sistem dan Google Drive.');

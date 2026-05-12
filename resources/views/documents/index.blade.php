@@ -257,57 +257,69 @@
                                     </td>
 
                                     <td class="text-end pe-4 py-3">
-                                        <div class="d-flex justify-content-end gap-1">
-                                            
-                                            @php
-                                                $editableExts = ['doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'];
-                                                $isEditable = in_array(strtolower($doc->extension), $editableExts);
-                                                $isOwner = $doc->owner_id == auth()->id();
-                                                $hasWriteAccess = $doc->permissions->where('user_id', auth()->id())->where('access_level', 'write')->isNotEmpty();
-                                            @endphp
+    <div class="d-flex justify-content-end gap-1">
+        
+        @php
+            $editableExts = ['doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'];
+            $isEditable = in_array(strtolower($doc->extension), $editableExts);
+            
+            // 1. Cek  Pemilik
+            $isOwner = $doc->owner_id == auth()->id();
+            
+            // 2. Cek  Admin
+            $isAdmin = auth()->user()->role_level === 'admin';
+            
+            // 3. Cek  file  Publik
+            $isPublic = $doc->is_public;
+            $hasWriteAccess = $doc->permissions->where('access_level', 'write')
+                ->filter(function($p) {
+                    return $p->user_id == auth()->id() || $p->department_id == auth()->user()->department_id;
+                })->isNotEmpty();
+        @endphp
 
-                                            @if($doc->google_file_id && $isEditable)
-                                                @if($isOwner || $hasWriteAccess)
-                                                    <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-primary text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
-                                                        <i class="bi bi-pencil-square me-2"></i> Live Edit
-                                                    </a>
-                                                @else
-                                                    <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-success text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Hanya Lihat (View Only)">
-                                                        <i class="bi bi-eye-fill me-2"></i> View Only
-                                                    </a>
-                                                @endif
-                                            @elseif($doc->google_file_id && !$isEditable)
-                                                <a href="https://drive.google.com/file/d/{{ $doc->google_file_id }}/view" target="_blank" class="btn btn-sm btn-info text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Lihat File">
-                                                    <i class="bi bi-eye-fill me-2"></i> Lihat
-                                                </a>
-                                            @else
-                                                <form action="{{ route('docs.retrySync', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm(' Sinkronisasi ulang file ini ke Google Drive?')">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-sm btn-icon btn-light text-warning shadow-sm hover-elevate" data-bs-toggle="tooltip" title="Pancing Ulang Sinkronisasi">
-                                                        <i class="bi bi-arrow-clockwise fs-6"></i>
-                                                    </button>
-                                                </form>
-                                            @endif
+        @if($doc->google_file_id && $isEditable)
+            {{-- PERBAIKAN: Admin, Owner, Izin Write, dan Publik bisa masuk Editor --}}
+            @if($isOwner || $isAdmin || $hasWriteAccess || $isPublic)
+                <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-primary text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Buka di Editor (Live)">
+                    <i class="bi bi-pencil-square me-2"></i> Buka Editor
+                </a>
+            @else
+                <a href="{{ route('docs.editor', $doc->id) }}" class="btn btn-sm btn-success text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Hanya Lihat (View Only)">
+                    <i class="bi bi-eye-fill me-2"></i> View Only
+                </a>
+            @endif
+        @elseif($doc->google_file_id && !$isEditable)
+            <a href="https://drive.google.com/file/d/{{ $doc->google_file_id }}/view" target="_blank" class="btn btn-sm btn-info text-white hover-elevate shadow-sm px-3 d-inline-flex align-items-center" data-bs-toggle="tooltip" title="Lihat File">
+                <i class="bi bi-eye-fill me-2"></i> Lihat
+            </a>
+        @else
+            <form action="{{ route('docs.retrySync', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm(' Sinkronisasi ulang file ini ke Google Drive?')">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-icon btn-light text-warning shadow-sm hover-elevate" data-bs-toggle="tooltip" title="Pancing Ulang Sinkronisasi">
+                    <i class="bi bi-arrow-clockwise fs-6"></i>
+                </button>
+            </form>
+        @endif
 
-                                            @if ($doc->owner_id == auth()->id())
-                                                <button type="button" class="btn btn-sm btn-icon btn-light text-info hover-elevate shadow-sm" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">
-                                                    <i class="bi bi-share-fill"></i>
-                                                </button>
-                                            @endif
+        @if ($doc->owner_id == auth()->id())
+            <button type="button" class="btn btn-sm btn-icon btn-light text-info hover-elevate shadow-sm" data-bs-toggle="modal" data-bs-target="#shareModal{{ $doc->id }}" title="{{ __('Share Access') }}">
+                <i class="bi bi-share-fill"></i>
+            </button>
+        @endif
 
-                                            @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
-                                                <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
-                                                    <i class="bi bi-pencil-square"></i>
-                                                </a>
-                                                <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
-                                                        <i class="bi bi-trash3-fill"></i>
-                                                    </button>
-                                                </form>
-                                            @endif
-                                        </div>
-                                    </td>
+        @if ($doc->owner_id == auth()->id() || auth()->user()->role_level == 'admin')
+            <a href="{{ route('docs.edit', $doc->id) }}" class="btn btn-sm btn-icon btn-light text-secondary hover-primary hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Edit') }}">
+                <i class="bi bi-pencil-square"></i>
+            </a>
+            <form action="{{ route('docs.destroy', $doc->id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ __('Are you sure?') }}')">
+                @csrf @method('DELETE')
+                <button type="submit" class="btn btn-sm btn-icon btn-light text-danger hover-elevate shadow-sm" data-bs-toggle="tooltip" title="{{ __('Delete') }}">
+                    <i class="bi bi-trash3-fill"></i>
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                                 </tr>
                             @empty
                                 <tr>

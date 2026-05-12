@@ -37,15 +37,16 @@
                 <i class="bi bi-person-workspace"></i> <span>{{ __('My Documents') }}</span>
             </a>
             <a href="{{ route('docs.explorer') }}" class="nav-link side-link {{ request()->routeIs('docs.explorer') ? 'active' : '' }}">
-                <i class="bi bi-hdd-network"></i> <span>{{ __('File Explorer') }}</span>
+                <i class="bi bi-hdd-network"></i> <span>{{ __('Folders Explorer') }}</span>
             </a>
             <a href="{{ route('docs.trash') }}" class="nav-link side-link {{ request()->routeIs('docs.trash') ? 'active' : '' }}">
                 <i class="bi bi-trash3"></i> <span>{{ __('Trash') }}</span>
             </a>
-            <!-- <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'active' : '' }}">
+            <!-- <a href="{{ route('chat.index') }}" class="nav-link side-link {{ request()->routeIs('chat.*') ? 'disabled' : '' }}">
                 <i class="bi bi-chat-left-dots"></i> <span>{{ __('Messaging') }}</span>
-                <span class="badge bg-primary ms-auto rounded-pill px-2 py-1" style="font-size: 0.65rem;">New</span>
+               <span class="badge bg-secondary ms-auto" style="font-size: 0.65rem;">{{ __('inactive') }}</span>
             </a> -->
+            
 
             @if (auth()->user()->role_level === 'admin')
                 <div class="nav-category mt-4">

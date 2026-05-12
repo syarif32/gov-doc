@@ -99,5 +99,22 @@
     "system_desc": "Access collaborative workspaces, manage archives, and secure internal data efficiently.",
     "feature_1": "Encrypted Infrastructure",
     "feature_2": "Real-time Synchronization",
+    "feature_3": "Advanced Search",
+    "feature_4": "Collaborative Workspaces",
+    "feature_5": "Comprehensive Audit Logs",   
+    "Folders Explorer": "Folders Explorer",
+    "Folders Explorer Description": "Jelajahi struktur folder dan dokumen di server",
+    "No documents found in this folder.": "No documents found in this folder.",
+    "Back to My Documents": "Back to My Documents",
+    "title_auth": "Digital Document Management System",
+    "System Description": "Access collaborative workspaces, manage archives, and secure internal data efficiently.",
+    "Infrastruktur Terenkripsi": "Encrypted Infrastructure",
+    "Sinkronisasi Real-time": "Real-time Synchronization",
+    "Pencarian Lanjutan": "Advanced Search",
+    "Ruang Kerja Kolaboratif": "Collaborative Workspaces",
+    "Audit Log Komprehensif": "Comprehensive Audit Logs",
+    "Pemerintah Kota Semarang": "Semarang City Government",
+    "inactive": "inactive",
     "developed_by": "System Developed By"
+
 }

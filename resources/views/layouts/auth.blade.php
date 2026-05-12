@@ -412,18 +412,21 @@
                 <img src="https://diskominfo.semarangkota.go.id/img/logodiskominfo.png" alt="Logo Diskominfo" class="brand-logo">
                 <div>
                     <h2>DISKOMINFO</h2>
-                    <p>Pemerintah Kota Semarang</p>
+                    <p>{{ __('Pemerintah Kota Semarang') }}</p>
                 </div>
             </div>
 
             <!-- Bagian ini akan disembunyikan di HP agar rapi -->
             <div class="auth-info">
                 <span class="badge-system">DMS Workspace</span>
-                <h3>Sistem Manajemen<br>Dokumen Digital</h3>
-                <p>Akses ruang kerja kolaboratif, kelola arsip, dan amankan data internal secara efisien.</p>
+                <h3>{{ __('title_auth') }}</h3>
+                <p>{{ __('System Description') }}</p>
                 <ul class="feature-list">
-                    <li><i class="bi bi-shield-check"></i> Infrastruktur Terenkripsi</li>
-                    <li><i class="bi bi-cloud-arrow-up"></i> Sinkronisasi Real-time</li>
+                    <li><i class="bi bi-shield-check"></i> {{ __('Infrastruktur Terenkripsi') }}</li>
+                    <li><i class="bi bi-cloud-arrow-up"></i> {{ __('Sinkronisasi Real-time') }}</li>
+                    <li><i class="bi bi-search"></i> {{ __('Pencarian Lanjutan') }}</li>
+                    <li><i class="bi bi-people"></i> {{ __('Ruang Kerja Kolaboratif') }}</li>
+                    <li><i class="bi bi-file-earmark-medical"></i> {{ __('Audit Log Komprehensif') }}</li>
                 </ul>
             </div>
 
@@ -434,8 +437,8 @@
                     <a href="{{ url('lang/en') }}" class="{{ app()->getLocale() == 'en' ? 'active' : '' }}">ENG</a>
                 </div>
                 <div class="creator-wrapper">
-                    <span>Sistem Dikembangkan Oleh</span>
-                    <a href="https://zaeeoon.vercel.app" target="_blank" class="github-link">
+                    <span>{{ __('developed_by') }}</span>
+                    <a href="https://zaeeon-site.vercel.app" target="_blank" class="github-link">
                         <i class="bi bi-github"></i> Muhammad Najwa Syarif
                     </a>
                 </div>
